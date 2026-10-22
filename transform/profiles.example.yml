@@ -1,0 +1,19 @@
+# Copy to transform/profiles.yml (git-ignored) or point DBT_PROFILES_DIR here.
+# Auth uses Application Default Credentials:
+#   - locally:  gcloud auth application-default login
+#   - in CI:    google-github-actions/auth with Workload Identity Federation
+stablecoin_monitor:
+  target: dev
+  outputs:
+    dev:
+      type: bigquery
+      method: oauth
+      project: "{{ env_var('GCP_PROJECT', 'crypto-504119') }}"
+      dataset: analytics
+      location: US
+      threads: 4
+      job_execution_timeout_seconds: 300
+      # Guardrail: any single query scanning more than 5 GB fails instead of billing.
+      # Nothing in this project should come close — models read our own small
+      # raw tables, never the 1 TiB public transfers table.
+      maximum_bytes_billed: 5000000000

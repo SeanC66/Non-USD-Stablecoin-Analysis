@@ -1,0 +1,29 @@
+name: stablecoin_monitor
+version: "0.1.0"
+config-version: 2
+profile: stablecoin_monitor
+
+model-paths: ["models"]
+seed-paths: ["seeds"]
+macro-paths: ["macros"]
+test-paths: ["tests"]
+
+clean-targets: ["target", "dbt_packages"]
+
+# Datasets land under exact names (see macros/generate_schema_name.sql):
+#   raw      — written by ingest/, never by dbt
+#   seeds    — reference data (contract registry, asset list)
+#   staging  — one cleaned view per source
+#   marts    — analysis-ready tables
+seeds:
+  stablecoin_monitor:
+    +schema: seeds
+
+models:
+  stablecoin_monitor:
+    staging:
+      +schema: staging
+      +materialized: view
+    marts:
+      +schema: marts
+      +materialized: table
