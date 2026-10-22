@@ -8,7 +8,7 @@ import sys
 
 from ingest import bq as bqh
 
-SOURCES = ["ethereum", "base"]
+SOURCES = ["ethereum", "base", "boc"]
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -38,6 +38,10 @@ def main(argv: list[str] | None = None) -> int:
                 from ingest import base
 
                 base.run(client, from_block=args.base_from_block)
+            elif source == "boc":
+                from ingest import boc
+
+                boc.run(client)
         except Exception:  # keep going so one broken source doesn't block the others
             logging.exception("%s failed", source)
             failed.append(source)
