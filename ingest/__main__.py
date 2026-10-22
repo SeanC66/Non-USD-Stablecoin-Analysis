@@ -8,13 +8,19 @@ import sys
 
 from ingest import bq as bqh
 
-SOURCES = ["ethereum"]
+SOURCES = ["ethereum", "base"]
 
 
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(prog="python -m ingest")
     parser.add_argument("sources", nargs="+", choices=SOURCES + ["all"])
     parser.add_argument("--lookback-hours", type=int, default=24, help="Ethereum overlap window")
+    parser.add_argument(
+        "--base-from-block",
+        type=int,
+        default=None,
+        help="Start block for Base contracts with no rows yet (skips the deployment-block search)",
+    )
     args = parser.parse_args(argv)
 
     logging.basicConfig(level=logging.INFO, format="%(asctime)s %(levelname)s %(name)s: %(message)s")
@@ -28,6 +34,10 @@ def main(argv: list[str] | None = None) -> int:
                 from ingest import ethereum
 
                 ethereum.run(client, lookback_hours=args.lookback_hours)
+            elif source == "base":
+                from ingest import base
+
+                base.run(client, from_block=args.base_from_block)
         except Exception:  # keep going so one broken source doesn't block the others
             logging.exception("%s failed", source)
             failed.append(source)
