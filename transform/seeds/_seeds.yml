@@ -1,0 +1,66 @@
+version: 2
+
+seeds:
+  - name: assets
+    description: >
+      One row per tracked stablecoin. `cohort` groups the analysis: Canadian
+      issuers, non-USD benchmarks, and A7A5 as a sanctions case study (not a peer).
+    config:
+      column_types:
+        public_launch_date: date
+        is_sanctioned: boolean
+    columns:
+      - name: asset_symbol
+        data_tests: [unique, not_null]
+      - name: peg_currency
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [CAD, EUR, SGD, BRL, RUB]
+      - name: cohort
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [canadian, benchmark, case_study]
+
+  - name: token_contracts
+    description: >
+      Contract registry: the single source of truth for which contracts the
+      pipeline ingests and which count toward each asset's supply. Ingestion
+      filters by address, never by symbol — the public token list carries
+      about 100 contracts using the EURC symbol alone.
+    config:
+      column_types:
+        decimals: int64
+        counts_toward_supply: boolean
+        verified: boolean
+    columns:
+      - name: contract_address
+        description: Lower-case hex address.
+        data_tests: [not_null]
+      - name: chain
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [ethereum, base]
+      - name: asset_symbol
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('assets')
+                field: asset_symbol
+      - name: decimals
+        data_tests: [not_null]
+      - name: contract_role
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [primary, legacy, test, wrapper]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [chain, contract_address]
