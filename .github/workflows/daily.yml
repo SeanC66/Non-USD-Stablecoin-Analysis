@@ -1,0 +1,55 @@
+name: Daily pipeline
+
+# Ingest new data, then load the seeds and run their tests.
+# 11:17 UTC is 07:17 in Toronto (06:17 in winter); the odd minute avoids
+# the top-of-hour queue on GitHub's shared runners.
+on:
+  schedule:
+    - cron: "17 11 * * *"
+  workflow_dispatch:
+    inputs:
+      sources:
+        description: "Sources to ingest (space-separated: ethereum base boc defillama, or all)"
+        default: all
+
+permissions:
+  contents: read
+  id-token: write # lets the job exchange a GitHub OIDC token for short-lived GCP credentials
+
+concurrency:
+  group: daily-pipeline
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    env:
+      GCP_PROJECT: crypto-504119
+      BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }} # optional; falls back to the public Base endpoint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+          cache: pip
+      - run: pip install -r requirements.txt
+
+      # No service-account keys anywhere: Workload Identity Federation trusts
+      # only this repository (see docs/gcp_setup.md).
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      - name: Ingest
+        run: python -m ingest ${{ github.event.inputs.sources || 'all' }}
+
+      - name: Refresh seeds and test them
+        working-directory: transform
+        env:
+          DBT_PROFILES_DIR: .
+        run: |
+          cp profiles.example.yml profiles.yml
+          dbt deps
+          dbt build --select resource_type:seed
