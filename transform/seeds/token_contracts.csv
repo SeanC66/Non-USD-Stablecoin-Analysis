@@ -1,0 +1,24 @@
+chain,contract_address,asset_symbol,decimals,contract_role,counts_toward_supply,verified,source,notes
+ethereum,0x16f93ebc5320c89efc8701577efe49d14a276a06,CADD,18,primary,true,true,tetradg.com/legal/supported-blockchains,
+base,0x16f93ebc5320c89efc8701577efe49d14a276a06,CADD,18,primary,true,true,tetradg.com/legal/supported-blockchains,
+ethereum,0x3fa142dd3f384414e05e71ad0939274edc82ec0a,QCAD,6,primary,true,false,coingecko.com/en/coins/stablecorp-qcad,Confirm against the prospectus on SEDAR+
+ethereum,0xa83dbfeacc5e125e34340f75dde7a710655a22f0,QCAD,6,test,false,false,crypto_ethereum.tokens,8 transfers 2025-12-24 to 2026-01-06 then dormant; likely a pre-launch deployment
+ethereum,0x4a16baf414b8e637ed12019fad5dd705735db2e0,QCAD_LEGACY,2,legacy,true,false,etherscan.io (marked legacy),Last transfer 2026-04-20
+ethereum,0x196ce252320872694ae8650eeee22bce2c7f085f,QCAD_LEGACY,8,test,false,false,crypto_ethereum.tokens,Single mint in 2019
+ethereum,0xcadc0acd4b445166f12d2c07eac6e2544fbe2eef,CADC,18,primary,true,true,loon.finance/blog/access-cadc-on-solana,
+base,0x043eb4b75d0805c43d7c834902e335621983cf03,CADC,18,primary,true,false,loon.finance/blog/access-cadc-on-solana,Decimals assumed equal to Ethereum; checked on-chain by the Base loader
+ethereum,0x1abaea1f7c830bd89acc67ec4af516284b1bc33c,EURC,6,primary,true,true,developers.circle.com/stablecoins/eurc-contract-addresses,
+base,0x60a3e35cc302bfa44cb288bc5a4f316fdb1adb42,EURC,6,primary,true,true,circle.com/blog/eurc-now-available-on-base,
+ethereum,0x70e8de73ce538da2beed35d14187f6959a8eca96,XSGD,6,primary,true,true,support.straitsx.com,
+ethereum,0x5256c4307e0ef634c072c9163b6d0d8c281526b8,XSGD,6,test,false,false,crypto_ethereum.tokens,10 transfers in March-April 2020 then dormant
+base,0x0a4c9cb2778ab3302996a34befcf9a8bc288c33b,XSGD,6,primary,true,false,support.straitsx.com,Decimals assumed equal to Ethereum; checked on-chain by the Base loader
+ethereum,0x420412e765bfa6d85aaac94b4f7b708c89be2e2b,BRZ,4,legacy,true,false,crypto_ethereum.tokens,2019 contract; still active in 2026
+ethereum,0x01d33fd36ec67c6ada32cf36b31e88ee190b1839,BRZ,18,primary,true,false,crypto_ethereum.tokens,2023 migrated contract; decimals differ from the 2019 contract by 14
+ethereum,0x6fa0be17e4bea2fcfa22ef89bf8ac9aab0ab0fc9,A7A5,6,primary,true,false,coingecko.com/en/coins/a7a5,
+ethereum,0x4c743b2744ac10bc4e5c48781fa58c4834ef5f74,A7A5,6,test,false,false,crypto_ethereum.tokens,No transfers
+ethereum,0xcc66bf11d5128a48a693febbdc39ad954c1b5ff7,A7A5,6,test,false,false,crypto_ethereum.tokens,No transfers
+ethereum,0xf7261b7c013c676d7d81321b6f308d71260b54f0,A7A5,6,test,false,false,crypto_ethereum.tokens,No transfers
+ethereum,0x71355812dba6981b1bcb11091d973d669387ad45,A7A5,6,test,false,false,crypto_ethereum.tokens,No transfers
+ethereum,0xa4af52653ba7e46a8a43d81d6f63422e954b03f6,A7A5,6,test,false,false,crypto_ethereum.tokens,5 transfers in March 2025
+ethereum,0xc63266786fe3b047c163fcec6bb7b38d39139337,A7A5,6,test,false,false,crypto_ethereum.tokens,No transfers
+ethereum,0x0d57436f2d39c0664c6f0f2e349229483f87ea38,A7A5,6,wrapper,false,false,crypto_ethereum.tokens,Wrapped A7A5; excluded from supply to avoid double counting

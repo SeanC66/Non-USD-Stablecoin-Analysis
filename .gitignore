@@ -1,0 +1,24 @@
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.pytest_cache/
+
+# dbt
+transform/target/
+transform/dbt_packages/
+transform/logs/
+transform/profiles.yml
+transform/.user.yml
+
+# Credentials — never commit keys; CI authenticates with Workload Identity Federation
+*.json.key
+*credentials*.json
+service-account*.json
+.env
+
+# OS / editors
+.DS_Store
+.vscode/
+.idea/

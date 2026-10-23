@@ -1,0 +1,9 @@
+asset_symbol,asset_name,peg_currency,issuer,cohort,public_launch_date,is_sanctioned,notes
+CADD,CAD Digital,CAD,Tetra Trust Company,canadian,2026-05-04,false,Approved by Alberta Treasury Board and Finance; on-chain activity from 2026-02-26 is pre-launch
+QCAD,QCAD (prospectus),CAD,QCAD Digital Trust (serviced by Stablecorp),canadian,2025-11-20,false,Final prospectus dated 2025-11-20; trust-based reserve structure
+QCAD_LEGACY,QCAD (pre-prospectus),CAD,Stablecorp Digital Currencies Inc,canadian,,false,Issued before the prospectus; excluded from the trust and backed by a separate custodial account
+CADC,CADC,CAD,LOON,canadian,,false,
+EURC,EURC,EUR,Circle Internet Financial Europe SAS,benchmark,,false,
+XSGD,XSGD,SGD,StraitsX,benchmark,,false,
+BRZ,BRZ,BRL,Transfero,benchmark,,false,
+A7A5,A7A5,RUB,Old Vector LLC,case_study,,true,Sanctioned by the US UK and EU; mainly circulates on Tron so Ethereum is a partial view
