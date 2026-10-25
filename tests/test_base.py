@@ -2,7 +2,7 @@ from datetime import timezone
 
 import pytest
 
-from ingest.base import TRANSFER_TOPIC, RpcError, block_timestamps, decode_transfer, fetch_logs
+from ingest.base import TRANSFER_TOPIC, Rpc, RpcError, block_timestamps, decode_transfer, fetch_logs
 
 FROM = "0x000000000000000000000000" + "ab" * 20
 TO = "0x000000000000000000000000" + "cd" * 20
@@ -90,6 +90,34 @@ def test_fetch_logs_reraises_non_range_errors():
 
     with pytest.raises(RpcError):
         list(fetch_logs(Broken(), "0xabc", start=0, end=10))
+
+
+class FakeResponse:
+    def __init__(self, status_code, body):
+        self.status_code = status_code
+        self._body = body
+
+    def json(self):
+        return self._body
+
+    def raise_for_status(self):
+        if self.status_code >= 400:
+            raise AssertionError("HTTP error should have been turned into an RpcError")
+
+
+class FakeSession:
+    def __init__(self, response):
+        self.response = response
+
+    def post(self, url, json, timeout):
+        return self.response
+
+
+def test_http_400_json_rpc_error_surfaces_the_provider_message():
+    error = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32602, "message": "block range limited to 10"}}
+    rpc = Rpc("https://example", session=FakeSession(FakeResponse(400, error)))
+    with pytest.raises(RpcError, match="block range limited to 10"):
+        rpc.call("eth_getLogs", [{}])
 
 
 def test_block_timestamps_batches_and_converts_to_utc():

@@ -24,8 +24,14 @@ MAX_BYTES = 10_000_000_000
 MAX_STALENESS = timedelta(days=30)
 
 
-def render_sql() -> str:
-    return SQL_PATH.read_text().format(project=PROJECT, dataset=RAW_DATASET)
+def timestamp_literal(ts: datetime) -> str:
+    """A BigQuery TIMESTAMP literal. Partition pruning in the cost estimate
+    needs a constant here; the value comes from our own table, not user input."""
+    return f"TIMESTAMP '{ts.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')}+00'"
+
+
+def render_sql(start: datetime) -> str:
+    return SQL_PATH.read_text().format(project=PROJECT, dataset=RAW_DATASET, start_ts=timestamp_literal(start))
 
 
 def start_timestamp(watermark: datetime | None, lookback_hours: int, now: datetime | None = None) -> datetime:
@@ -53,11 +59,8 @@ def _watermark(client: bigquery.Client) -> datetime | None:
 def run(client: bigquery.Client, lookback_hours: int = 24) -> dict:
     start = start_timestamp(_watermark(client), lookback_hours)
     contracts = sorted({c.address for c in load_contracts(chain="ethereum")})
-    params = [
-        bigquery.ArrayQueryParameter("contracts", "STRING", contracts),
-        bigquery.ScalarQueryParameter("start_ts", "TIMESTAMP", start),
-    ]
-    job = bqh.run_query(client, render_sql(), params=params, max_bytes=MAX_BYTES, source="ethereum")
+    params = [bigquery.ArrayQueryParameter("contracts", "STRING", contracts)]
+    job = bqh.run_query(client, render_sql(start), params=params, max_bytes=MAX_BYTES, source="ethereum")
     summary = {
         "start_ts": start.isoformat(),
         "contracts": len(contracts),

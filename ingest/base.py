@@ -63,6 +63,16 @@ class Rpc:
                 log.warning("RPC HTTP %s, retrying in %ss", resp.status_code, wait)
                 time.sleep(wait)
                 continue
+            if resp.status_code == 400:
+                # Providers return JSON-RPC errors (such as block-range limits)
+                # with HTTP 400. Hand the body back so call() raises an RpcError
+                # carrying the provider's message instead of a bare "Bad Request".
+                try:
+                    body = resp.json()
+                except ValueError:
+                    body = None
+                if isinstance(body, dict) and "error" in body:
+                    return body
             resp.raise_for_status()
             return resp.json()
         raise RpcError(f"RPC failed after {self.max_retries} retries")
