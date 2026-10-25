@@ -18,5 +18,5 @@ def test_chain_filter():
 
 def test_ethereum_sql_reads_registry_parameters_not_hardcoded_addresses():
     sql = render_sql()
-    assert "@contracts" in sql and "@lookback_hours" in sql
+    assert "@contracts" in sql and "@start_ts" in sql
     assert "0x" not in sql.split("MERGE", 1)[1]
