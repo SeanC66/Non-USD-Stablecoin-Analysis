@@ -1,7 +1,7 @@
-chain,contract_address,asset_symbol,decimals,contract_role,counts_toward_supply,verified,source,notes
+  chain,contract_address,asset_symbol,decimals,contract_role,counts_toward_supply,verified,source,notes
 ethereum,0x16f93ebc5320c89efc8701577efe49d14a276a06,CADD,18,primary,true,true,tetradg.com/legal/supported-blockchains,
 base,0x16f93ebc5320c89efc8701577efe49d14a276a06,CADD,18,primary,true,true,tetradg.com/legal/supported-blockchains,
-ethereum,0x3fa142dd3f384414e05e71ad0939274edc82ec0a,QCAD,6,primary,true,true,coingecko.com/en/coins/stablecorp-qcad,Confirm against the prospectus on SEDAR+
+ethereum,0x3fa142dd3f384414e05e71ad0939274edc82ec0a,QCAD,6,primary,true,true,coingecko.com/en/coins/stablecorp-qcad,Confirmed against the prospectus on SEDAR+
 ethereum,0xa83dbfeacc5e125e34340f75dde7a710655a22f0,QCAD,6,test,false,false,crypto_ethereum.tokens,8 transfers 2025-12-24 to 2026-01-06 then dormant; likely a pre-launch deployment
 ethereum,0x4a16baf414b8e637ed12019fad5dd705735db2e0,QCAD_LEGACY,2,legacy,true,false,etherscan.io (marked legacy),Last transfer 2026-04-20
 ethereum,0x196ce252320872694ae8650eeee22bce2c7f085f,QCAD_LEGACY,8,test,false,false,crypto_ethereum.tokens,Single mint in 2019
