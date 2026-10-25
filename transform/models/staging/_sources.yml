@@ -1,0 +1,8 @@
+version: 2
+
+sources:
+  - name: raw                  # the name you'll use in SQL
+    database: crypto-504119    # GCP project
+    schema: raw                # BigQuery dataset
+    tables:
+      - name: ethereum_token_transfers
