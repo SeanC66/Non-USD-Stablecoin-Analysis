@@ -211,7 +211,7 @@ def _load_contract(client, rpc: Rpc, contract: Contract, start: int, end: int) -
 
 
 def run(client: bigquery.Client, rpc_url: str | None = None, from_block: int | None = None) -> dict:
-    rpc = Rpc(rpc_url or os.environ.get("BASE_RPC_URL", DEFAULT_RPC_URL))
+    rpc = Rpc(rpc_url or os.environ.get("BASE_RPC_URL") or DEFAULT_RPC_URL)
     bqh.ensure_table(
         client,
         TABLE,
