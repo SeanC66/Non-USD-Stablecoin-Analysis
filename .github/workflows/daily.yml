@@ -1,6 +1,8 @@
 name: Daily pipeline
 
 # Ingest new data, then load the seeds and run their tests.
+# Base is skipped until it has a data source that works without a paid RPC
+# plan (issue #10). DefiLlama still records each token's supply on Base.
 # 11:17 UTC is 07:17 in Toronto (06:17 in winter); the odd minute avoids
 # the top-of-hour queue on GitHub's shared runners.
 on:
@@ -10,7 +12,7 @@ on:
     inputs:
       sources:
         description: "Sources to ingest (space-separated: ethereum base boc defillama, or all)"
-        default: all
+        default: ethereum boc defillama
 
 permissions:
   contents: read
@@ -26,7 +28,7 @@ jobs:
     timeout-minutes: 60
     env:
       GCP_PROJECT: crypto-504119
-      BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }} # optional; falls back to the public Base endpoint
+      BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }} # only used when base is requested (see issue #10)
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -43,7 +45,7 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Ingest
-        run: python -m ingest ${{ github.event.inputs.sources || 'all' }}
+        run: python -m ingest ${{ github.event.inputs.sources || 'ethereum boc defillama' }}
 
       - name: Refresh seeds and test them
         working-directory: transform

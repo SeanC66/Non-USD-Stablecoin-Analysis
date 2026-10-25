@@ -1,3 +1,5 @@
+from datetime import datetime, timezone
+
 from ingest.config import load_assets, load_contracts
 from ingest.ethereum import render_sql
 
@@ -17,6 +19,6 @@ def test_chain_filter():
 
 
 def test_ethereum_sql_reads_registry_parameters_not_hardcoded_addresses():
-    sql = render_sql()
-    assert "@contracts" in sql and "@start_ts" in sql
-    assert "0x" not in sql.split("MERGE", 1)[1]
+    sql = render_sql(datetime(2026, 10, 25, tzinfo=timezone.utc))
+    assert "@contracts" in sql
+    assert "0x" not in sql.split("INSERT INTO", 1)[1]
