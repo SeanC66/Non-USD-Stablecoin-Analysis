@@ -130,28 +130,43 @@ def fetch_logs(
     start: int,
     end: int,
     chunk: int = 2_000,
-    min_chunk: int = 10,
+    min_chunk: int = 1,
     max_chunk: int = 10_000,
 ) -> Iterator[tuple[int, list[dict]]]:
     """Yield (chunk_end_block, logs) across [start, end], shrinking the block
-    range when the provider refuses it and growing it again after successes."""
+    range when the provider refuses it and growing it again after successes.
+
+    Shrinking uses the width actually requested, which matters for a short
+    final window, and a rejected width seen during this call caps later growth
+    so success does not repeatedly probe the same provider limit."""
+    floor = max(1, min_chunk)
+    chunk = min(max(chunk, floor), max_chunk)
+    rejected_width: int | None = None
     cursor = start
     while cursor <= end:
         upper = min(cursor + chunk - 1, end)
+        width = upper - cursor + 1
         try:
             logs = rpc.call(
                 "eth_getLogs",
                 [{"address": address, "topics": [TRANSFER_TOPIC], "fromBlock": hex(cursor), "toBlock": hex(upper)}],
             )
         except RpcError as err:
-            if _is_range_error(err) and chunk > min_chunk:
-                chunk = max(chunk // 2, min_chunk)
-                log.info("narrowing getLogs range to %s blocks (%s)", chunk, err)
-                continue
-            raise
+            if not _is_range_error(err):
+                raise
+            if width <= floor:
+                raise
+            if rejected_width is None or width < rejected_width:
+                rejected_width = width
+            chunk = max(width // 2, floor)
+            log.info("narrowing getLogs range to %s blocks (%s)", chunk, err)
+            continue
         yield upper, logs
         cursor = upper + 1
-        chunk = min(chunk * 2, max_chunk)
+        next_chunk = min(chunk * 2, max_chunk)
+        if rejected_width is not None:
+            next_chunk = min(next_chunk, rejected_width - 1)
+        chunk = next_chunk
 
 
 def block_timestamps(rpc: Rpc, blocks: set[int], batch_size: int = 50) -> dict[int, datetime]:
