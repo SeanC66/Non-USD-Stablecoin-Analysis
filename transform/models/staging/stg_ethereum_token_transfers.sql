@@ -1,3 +1,12 @@
+with transfers as (
+    select * from {{ source('raw', 'ethereum_token_transfers') }}
+),
+
+contracts as (
+    select * from {{ ref('token_contracts') }}
+    where chain = 'ethereum'
+)
+
 select 
 
     cast('ethereum' as string) as chain,
@@ -12,14 +21,14 @@ select
     cast(left(ett.block_date, 10) as date) as block_date,
     ett.from_address,
     ett.to_address,
-    cast(ett.value as float) as amount,
-    cast(ett.from_address as string) as transfer_type
-        where ett.from_address is ''
+    safe_cast(ett.value as bignumeric) / pow(10, tc.decimals) as amount,
+    case
+        when ett.from_address = '0x0000000000000000000000000000000000000000' then 'mint'
+        when ett.to_address   = '0x0000000000000000000000000000000000000000' then 'burn'
+        else 'transfer'
+    end as transfer_type
 
+from contracts as tc
 
-
-from raw.token_contracts as tc
-
-
-
-left join raw.ethereum_token_transfers as ett on 
+left join transfers as ett 
+    on ett.token_address = tc.contract_address
