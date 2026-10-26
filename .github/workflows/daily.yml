@@ -1,6 +1,6 @@
 name: Daily pipeline
 
-# Ingest new data, then load the seeds and run their tests.
+# Ingest new data, then build and test the dbt project.
 # Base is skipped until it has a data source that works without a paid RPC
 # plan (issue #10). DefiLlama still records each token's supply on Base.
 # 11:17 UTC is 07:17 in Toronto (06:17 in winter); the odd minute avoids
@@ -47,11 +47,13 @@ jobs:
       - name: Ingest
         run: python -m ingest ${{ github.event.inputs.sources || 'ethereum boc defillama' }}
 
-      - name: Refresh seeds and test them
+      # Loads seeds, builds every model and runs every test against fresh data.
+      # A broken model or a failing data test turns the daily run red.
+      - name: Build and test dbt project
         working-directory: transform
         env:
           DBT_PROFILES_DIR: .
         run: |
           cp profiles.example.yml profiles.yml
           dbt deps
-          dbt build --select resource_type:seed
+          dbt build
