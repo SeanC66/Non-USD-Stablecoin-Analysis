@@ -1,0 +1,26 @@
+version: 2
+
+models:
+  - name: stg_ethereum__token_transfers
+    description: >
+      One row per ERC-20 Transfer event on Ethereum for contracts in the
+      registry seed, with the asset label and a decimal-scaled amount.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [transaction_hash, log_index]
+    columns:
+      - name: asset_symbol
+        description: Null means the contract is missing from seeds/token_contracts.csv.
+        data_tests:
+          - not_null
+      - name: amount
+        description: Token amount scaled by the contract's decimals. Null means the raw value failed to parse.
+        data_tests:
+          - not_null
+      - name: transfer_type
+        description: mint (from the zero address), burn (to the zero address) or transfer.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [mint, burn, transfer]
