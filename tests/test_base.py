@@ -171,3 +171,30 @@ def test_block_timestamps_batches_and_converts_to_utc():
     assert set(stamps) == {1, 5, 120}
     assert stamps[5].tzinfo == timezone.utc
     assert stamps[5].timestamp() == 1_700_000_010
+
+
+@pytest.mark.parametrize("limit", [500, 1000, 2000, 3000])
+def test_fetch_logs_binary_search_bounds_rejections_for_long_scans(limit):
+    rpc = FakeRpc(limit=limit)
+    list(fetch_logs(rpc, "0xabc", start=0, end=999_999))
+    rejected = [r for r in rpc.requests if r[1] - r[0] + 1 > limit]
+    assert len(rejected) <= 12
+    assert rpc.ranges[0][0] == 0
+    assert rpc.ranges[-1][1] == 999_999
+    assert sum(hi - lo + 1 for lo, hi in rpc.ranges) == 1_000_000
+    assert all(left[1] + 1 == right[0] for left, right in zip(rpc.ranges, rpc.ranges[1:]))
+
+
+def test_fetch_logs_adapts_when_later_ranges_reject_a_previously_accepted_width():
+    class VariableLimit(FakeRpc):
+        def call(self, method, params):
+            lo = int(params[0]["fromBlock"], 16)
+            self.limit = 100 if lo < 300 else 5
+            return super().call(method, params)
+
+    rpc = VariableLimit(max_requests=180)
+    list(fetch_logs(rpc, "0xabc", start=0, end=999, chunk=100, max_chunk=200))
+    assert rpc.ranges[0][0] == 0
+    assert rpc.ranges[-1][1] == 999
+    assert sum(hi - lo + 1 for lo, hi in rpc.ranges) == 1000
+    assert all(left[1] + 1 == right[0] for left, right in zip(rpc.ranges, rpc.ranges[1:]))

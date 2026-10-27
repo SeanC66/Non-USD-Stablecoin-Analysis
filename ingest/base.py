@@ -137,11 +137,12 @@ def fetch_logs(
     range when the provider refuses it and growing it again after successes.
 
     Shrinking uses the width actually requested, which matters for a short
-    final window, and a rejected width seen during this call caps later growth
-    so success does not repeatedly probe the same provider limit."""
+    final window. Once a width is rejected, probe halfway between the
+    largest accepted and smallest rejected widths to learn the limit."""
     floor = max(1, min_chunk)
     chunk = min(max(chunk, floor), max_chunk)
     rejected_width: int | None = None
+    accepted_width = 0
     cursor = start
     while cursor <= end:
         upper = min(cursor + chunk - 1, end)
@@ -158,14 +159,18 @@ def fetch_logs(
                 raise
             if rejected_width is None or width < rejected_width:
                 rejected_width = width
-            chunk = max(width // 2, floor)
+            if accepted_width >= rejected_width:
+                # Later blocks can have a tighter result-size limit.
+                accepted_width = 0
+            chunk = max((accepted_width + rejected_width) // 2, floor)
             log.info("narrowing getLogs range to %s blocks (%s)", chunk, err)
             continue
         yield upper, logs
         cursor = upper + 1
         next_chunk = min(chunk * 2, max_chunk)
+        accepted_width = max(accepted_width, width)
         if rejected_width is not None:
-            next_chunk = min(next_chunk, rejected_width - 1)
+            next_chunk = min(max_chunk, (accepted_width + rejected_width) // 2)
         chunk = next_chunk
 
 
