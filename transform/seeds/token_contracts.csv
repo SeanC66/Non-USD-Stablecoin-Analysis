@@ -12,7 +12,7 @@ base,0x60a3e35cc302bfa44cb288bc5a4f316fdb1adb42,EURC,6,primary,true,true,circle.
 ethereum,0x70e8de73ce538da2beed35d14187f6959a8eca96,XSGD,6,primary,true,true,support.straitsx.com,
 ethereum,0x5256c4307e0ef634c072c9163b6d0d8c281526b8,XSGD,6,test,false,false,crypto_ethereum.tokens,10 transfers in March-April 2020 then dormant
 base,0x0a4c9cb2778ab3302996a34befcf9a8bc288c33b,XSGD,6,primary,true,false,support.straitsx.com,Decimals assumed equal to Ethereum; checked on-chain by the Base loader
-ethereum,0x420412e765bfa6d85aaac94b4f7b708c89be2e2b,BRZ,4,legacy,true,false,crypto_ethereum.tokens,2019 contract; still active in 2026
+ethereum,0x420412e765bfa6d85aaac94b4f7b708c89be2e2b,BRZ,4,legacy,false,false,crypto_ethereum.tokens,2019 contract; ~150M on-chain but 93.4% sits in two wallets and 2% is stuck in the token contract; excluded from supply (see #16)
 ethereum,0x01d33fd36ec67c6ada32cf36b31e88ee190b1839,BRZ,18,primary,true,false,crypto_ethereum.tokens,2023 migrated contract; decimals differ from the 2019 contract by 14
 ethereum,0x6fa0be17e4bea2fcfa22ef89bf8ac9aab0ab0fc9,A7A5,6,primary,true,false,coingecko.com/en/coins/a7a5,
 ethereum,0x4c743b2744ac10bc4e5c48781fa58c4834ef5f74,A7A5,6,test,false,false,crypto_ethereum.tokens,No transfers
