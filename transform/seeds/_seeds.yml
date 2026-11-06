@@ -24,6 +24,13 @@ seeds:
           - accepted_values:
               arguments:
                 values: [canadian, benchmark, case_study]
+      - name: supply_method
+        description: How supply is measured. transfers = mints minus burns from on-chain events; external = DefiLlama snapshots, for tokens that change supply outside standard events (see #17).
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [transfers, external]
 
   - name: token_contracts
     description: >
