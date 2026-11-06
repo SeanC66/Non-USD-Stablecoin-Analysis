@@ -59,15 +59,20 @@ def test_ignores_non_erc20_logs(overrides):
 class FakeRpc:
     """Refuses getLogs ranges wider than `limit` blocks, like many providers."""
 
-    def __init__(self, limit=500):
+    def __init__(self, limit=500, max_requests=None):
         self.limit = limit
-        self.ranges = []
+        self.max_requests = max_requests
+        self.ranges = []  # successful ranges only
+        self.requests = []  # every attempted range, including rejected ones
 
     def call(self, method, params):
         assert method == "eth_getLogs"
         lo, hi = int(params[0]["fromBlock"], 16), int(params[0]["toBlock"], 16)
+        self.requests.append((lo, hi))
+        if self.max_requests is not None and len(self.requests) > self.max_requests:
+            raise AssertionError(f"exceeded {self.max_requests} getLogs requests")
         if hi - lo + 1 > self.limit:
-            raise RpcError("query exceeds max block range 500")
+            raise RpcError(f"query exceeds max block range {self.limit}")
         self.ranges.append((lo, hi))
         return []
 
@@ -90,6 +95,47 @@ def test_fetch_logs_reraises_non_range_errors():
 
     with pytest.raises(RpcError):
         list(fetch_logs(Broken(), "0xabc", start=0, end=10))
+
+
+def test_fetch_logs_default_reaches_five_block_cap_under_30_calls():
+    rpc = FakeRpc(limit=5, max_requests=30)
+    list(fetch_logs(rpc, "0xabc", start=0, end=99))
+    covered = [b for lo, hi in rpc.ranges for b in range(lo, hi + 1)]
+    assert covered == list(range(0, 100))
+    assert all(hi - lo + 1 <= 5 for lo, hi in rpc.ranges)
+    assert len(rpc.requests) <= 30
+
+
+def test_fetch_logs_short_tail_shrinks_by_actual_span_without_resending_rejection():
+    rpc = FakeRpc(limit=5, max_requests=10)
+    list(fetch_logs(rpc, "0xabc", start=0, end=7, chunk=100))
+    assert rpc.requests == [(0, 7), (0, 3), (4, 7)]
+    covered = [b for lo, hi in rpc.ranges for b in range(lo, hi + 1)]
+    assert covered == list(range(0, 8))
+
+
+def test_fetch_logs_single_block_range_error_fails_fast():
+    rpc = FakeRpc(limit=0, max_requests=3)
+    with pytest.raises(RpcError, match="max block range 0"):
+        list(fetch_logs(rpc, "0xabc", start=42, end=42))
+    assert rpc.requests == [(42, 42)]
+
+
+def test_fetch_logs_honors_explicit_min_chunk_floor_and_reraises():
+    rpc = FakeRpc(limit=5, max_requests=10)
+    with pytest.raises(RpcError, match="max block range 5"):
+        list(fetch_logs(rpc, "0xabc", start=0, end=99, chunk=100, min_chunk=10))
+    assert len(rpc.requests) == 5
+    assert rpc.requests[-1] == (0, 9)
+    assert all(hi - lo + 1 >= 10 for lo, hi in rpc.requests)
+
+
+def test_fetch_logs_never_exceeds_explicit_max_chunk():
+    rpc = FakeRpc(limit=10_000)
+    list(fetch_logs(rpc, "0xabc", start=0, end=999, chunk=5_000, max_chunk=100))
+    covered = [b for lo, hi in rpc.ranges for b in range(lo, hi + 1)]
+    assert covered == list(range(0, 1_000))
+    assert all(hi - lo + 1 <= 100 for lo, hi in rpc.requests)
 
 
 class FakeResponse:
@@ -125,3 +171,30 @@ def test_block_timestamps_batches_and_converts_to_utc():
     assert set(stamps) == {1, 5, 120}
     assert stamps[5].tzinfo == timezone.utc
     assert stamps[5].timestamp() == 1_700_000_010
+
+
+@pytest.mark.parametrize("limit", [500, 1000, 2000, 3000])
+def test_fetch_logs_binary_search_bounds_rejections_for_long_scans(limit):
+    rpc = FakeRpc(limit=limit)
+    list(fetch_logs(rpc, "0xabc", start=0, end=999_999))
+    rejected = [r for r in rpc.requests if r[1] - r[0] + 1 > limit]
+    assert len(rejected) <= 12
+    assert rpc.ranges[0][0] == 0
+    assert rpc.ranges[-1][1] == 999_999
+    assert sum(hi - lo + 1 for lo, hi in rpc.ranges) == 1_000_000
+    assert all(left[1] + 1 == right[0] for left, right in zip(rpc.ranges, rpc.ranges[1:]))
+
+
+def test_fetch_logs_adapts_when_later_ranges_reject_a_previously_accepted_width():
+    class VariableLimit(FakeRpc):
+        def call(self, method, params):
+            lo = int(params[0]["fromBlock"], 16)
+            self.limit = 100 if lo < 300 else 5
+            return super().call(method, params)
+
+    rpc = VariableLimit(max_requests=180)
+    list(fetch_logs(rpc, "0xabc", start=0, end=999, chunk=100, max_chunk=200))
+    assert rpc.ranges[0][0] == 0
+    assert rpc.ranges[-1][1] == 999
+    assert sum(hi - lo + 1 for lo, hi in rpc.ranges) == 1000
+    assert all(left[1] + 1 == right[0] for left, right in zip(rpc.ranges, rpc.ranges[1:]))
