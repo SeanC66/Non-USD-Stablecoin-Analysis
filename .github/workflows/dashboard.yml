@@ -1,0 +1,74 @@
+name: Dashboard
+
+# Builds the Evidence site from the marts and publishes it to GitHub Pages.
+# The site is static, so it only changes when this runs: after each successful
+# daily pipeline, and whenever reports/ changes. Pull requests build but never
+# deploy, which proves a change works before it reaches the public site.
+on:
+  workflow_run:
+    workflows: [Daily pipeline]
+    types: [completed]
+  push:
+    branches: [main]
+    paths: [reports/**, .github/workflows/dashboard.yml]
+  pull_request:
+    paths: [reports/**, .github/workflows/dashboard.yml]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: dashboard-${{ github.event_name == 'pull_request' && github.ref || 'main' }}
+  cancel-in-progress: false
+
+jobs:
+  build:
+    # A failed pipeline may have left the marts half built, so keep the last site.
+    if: github.event_name != 'workflow_run' || github.event.workflow_run.conclusion == 'success'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    permissions:
+      contents: read
+      id-token: write # lets the job exchange a GitHub OIDC token for short-lived GCP credentials
+    defaults:
+      run:
+        working-directory: reports
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: reports/package-lock.json
+      - run: npm ci
+
+      # No service-account keys anywhere: Workload Identity Federation trusts
+      # only this repository (see docs/gcp_setup.md).
+      - uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: ${{ secrets.GCP_WIF_PROVIDER }}
+          service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
+
+      # Strict mode turns a failed query into a failed build, rather than
+      # publishing a page with missing data.
+      - run: npm run sources:strict
+      - run: npm run build:strict
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: reports/build/Non-USD-Stablecoin-Analysis
+
+  deploy:
+    if: github.event_name != 'pull_request'
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4

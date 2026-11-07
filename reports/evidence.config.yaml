@@ -1,0 +1,15 @@
+# Pinned to classic Evidence (40.x), the last line that builds a static site.
+# Later versions need a running server, which GitHub Pages can't host.
+deployment:
+  basePath: /Non-USD-Stablecoin-Analysis
+
+appearance:
+  default: system
+  switcher: true
+
+plugins:
+  components:
+    "@evidence-dev/core-components": {}
+
+  datasources:
+    "@evidence-dev/bigquery": {}
