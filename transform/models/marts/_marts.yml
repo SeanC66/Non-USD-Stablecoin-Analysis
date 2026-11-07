@@ -1,0 +1,49 @@
+version: 2
+
+models:
+  - name: mart_daily_supply
+    description: >
+      One row per asset per day from the asset's first appearance through
+      today: how much of each stablecoin exists, in its own currency and in CAD.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [supply_date, asset_symbol]
+    columns:
+      - name: supply_date
+        description: Calendar day in UTC. The latest day can be carried forward from the day before.
+        data_tests:
+          - not_null
+          - dbt_utils.sequential_values:
+              arguments:
+                interval: 1
+                datepart: day
+                group_by_columns: [asset_symbol]
+      - name: eth_supply_onchain
+        description: Running mints minus burns on Ethereum, for contracts that count toward supply. Null for external assets (see #17).
+      - name: eth_supply_defillama
+        description: DefiLlama's Ethereum figure, for reconciliation. It reflects the close of the day before, so compare it with the prior day's eth_supply_onchain. Skipped days carry the last figure.
+      - name: total_supply_defillama
+        description: DefiLlama's figure summed across chains, each filled forward first. Null before the asset's first DefiLlama date.
+      - name: supply_native
+        description: Headline supply in the asset's peg currency. Jumps on the day supply_source changes, which is not real growth.
+        data_tests:
+          - not_null
+      - name: supply_source
+        description: Which figure supply_native is showing.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [defillama_all_chains, ethereum_onchain]
+      - name: cad_per_unit
+        description: Canadian dollars per unit of the peg currency. CAD is 1. Days without a published rate carry the last one.
+        data_tests:
+          - not_null
+      - name: fx_is_stale
+        description: True when the rate is more than 7 days old. Applies to RUB from 2026-05-08, so treat A7A5's supply_cad with caution.
+        data_tests:
+          - not_null
+      - name: supply_cad
+        description: supply_native in Canadian dollars.
+        data_tests:
+          - not_null
