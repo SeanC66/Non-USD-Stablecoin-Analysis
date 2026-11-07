@@ -46,39 +46,22 @@ daily_events as (
         countif(transfer_type = 'transfer') as transfers,
         countif(transfer_type = 'mint') as mints,
         countif(transfer_type = 'burn') as burns,
-        count(distinct if(transfer_type = 'transfer' and amount > 0, from_address, null)) as senders,
-        count(distinct if(transfer_type = 'transfer' and amount > 0, to_address, null)) as receivers,
         sum(if(transfer_type = 'transfer', amount, 0)) as transfer_volume_native,
         max(if(transfer_type = 'transfer', amount, null)) as largest_transfer
     from transfers
     group by asset_symbol, block_date
 ),
 
--- Both sides of every transfer in one column, so a wallet that sent and received
--- on the same day counts once. Mints and burns are left out, which also keeps
--- the zero address out: it's only ever on one side of those. Zero-value transfers
--- are left out too: anyone can send one to any wallet, so they look like spam
--- rather than usage, and 11% of EURC's addresses appear in nothing else.
-transfer_addresses as (
-    select asset_symbol, block_date as activity_date, from_address as address
-    from transfers
-    where transfer_type = 'transfer'
-        and amount > 0
-
-    union all
-
-    select asset_symbol, block_date as activity_date, to_address as address
-    from transfers
-    where transfer_type = 'transfer'
-        and amount > 0
-),
-
+-- Both sides of every transfer are in one column, so a wallet that sent and
+-- received on the same day counts once.
 daily_addresses as (
     select
         asset_symbol,
         activity_date,
-        count(distinct address) as active_addresses
-    from transfer_addresses
+        count(distinct address) as active_addresses,
+        count(distinct if(side = 'sender', address, null)) as senders,
+        count(distinct if(side = 'receiver', address, null)) as receivers
+    from {{ ref('int_transfer_addresses') }}
     group by asset_symbol, activity_date
 )
 
@@ -94,8 +77,8 @@ select
     coalesce(de.mints, 0) as mints,
     coalesce(de.burns, 0) as burns,
     coalesce(da.active_addresses, 0) as active_addresses,
-    coalesce(de.senders, 0) as senders,
-    coalesce(de.receivers, 0) as receivers,
+    coalesce(da.senders, 0) as senders,
+    coalesce(da.receivers, 0) as receivers,
     coalesce(de.transfer_volume_native, 0) as transfer_volume_native,
     -- Null on days with no volume, including days of only zero-value transfers.
     safe_divide(de.largest_transfer, de.transfer_volume_native) as largest_transfer_share

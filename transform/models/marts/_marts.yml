@@ -102,3 +102,77 @@ models:
           - not_null
       - name: largest_transfer_share
         description: Biggest single transfer divided by the day's volume, showing when one whale dominates a day. Null when the day has no volume.
+
+  - name: mart_weekly_activity
+    description: >
+      One row per asset per week, Monday to Sunday, on Ethereum. Use this for
+      weekly active addresses: the daily figure can't be summed.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [activity_week, asset_symbol]
+    columns:
+      - name: activity_week
+        description: The Monday the week starts on, in UTC.
+        data_tests:
+          - not_null
+          - dbt_utils.sequential_values:
+              arguments:
+                interval: 1
+                datepart: week
+                group_by_columns: [asset_symbol]
+      - name: days_in_week
+        description: Days the mart covers in this week. Below 7 means a partial week, which is always the case for an asset's first week if it didn't start on a Monday, and usually for the latest week.
+        data_tests:
+          - not_null
+      - name: is_pre_launch
+        description: True when every day of the week is before the asset's public_launch_date. CADD launched on a Monday, so none of its weeks are split.
+        data_tests:
+          - not_null
+      - name: transfers
+        description: Transfers between wallets, including zero-value ones. Excludes mints and burns.
+        data_tests:
+          - not_null
+      - name: active_addresses
+        description: Distinct addresses that sent or received a transfer with a non-zero amount during the week.
+        data_tests:
+          - not_null
+      - name: transfer_volume_native
+        description: Sum of transfer amounts in the asset's peg currency. Excludes mints and burns.
+        data_tests:
+          - not_null
+
+  - name: mart_daily_chain_supply
+    description: >
+      One row per asset, chain and day from DefiLlama: where each stablecoin's
+      supply sits, in its own currency and in CAD. Assets DefiLlama doesn't list
+      (BRZ, QCAD_LEGACY) have no rows.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [supply_date, asset_symbol, chain]
+    columns:
+      - name: supply_date
+        description: Calendar day in UTC. Skipped days carry the last figure, and so can the latest day.
+        data_tests:
+          - not_null
+      - name: chain
+        description: Chain name as DefiLlama writes it, such as Ethereum or World Chain.
+        data_tests:
+          - not_null
+      - name: supply_native
+        description: Circulating supply on this chain in the asset's peg currency.
+        data_tests:
+          - not_null
+      - name: cad_per_unit
+        description: Canadian dollars per unit of the peg currency, from mart_daily_supply.
+        data_tests:
+          - not_null
+      - name: fx_is_stale
+        description: True when the rate is more than 7 days old. Applies to RUB from 2026-05-08, so treat A7A5's supply_cad with caution.
+        data_tests:
+          - not_null
+      - name: supply_cad
+        description: supply_native in Canadian dollars.
+        data_tests:
+          - not_null
