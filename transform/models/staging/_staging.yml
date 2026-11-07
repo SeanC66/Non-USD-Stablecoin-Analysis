@@ -24,3 +24,42 @@ models:
           - accepted_values:
               arguments:
                 values: [mint, burn, transfer]
+
+  - name: stg_boc__fx_daily
+    description: >
+      One row per date and currency from the Bank of Canada daily rates, for
+      the peg currencies in seeds/assets.csv plus USD. Series can stop or skip
+      dates (RUB ends 2026-04-30); gaps are left for the marts to handle.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [rate_date, currency]
+    columns:
+      - name: currency
+        description: Three-letter currency code taken from the Bank of Canada series_id.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [EUR, SGD, BRL, RUB, USD]
+      - name: cad_per_unit
+        description: Canadian dollars per one unit of the currency.
+        data_tests:
+          - not_null
+
+  - name: stg_defillama__chain_supply
+    description: >
+      One row per asset, chain and day of circulating supply from the latest
+      DefiLlama snapshot, in the asset's own currency units. Assets DefiLlama
+      doesn't list (BRZ, QCAD_LEGACY) have no rows. Days with no figure in the
+      asset's own currency are dropped.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [asset_symbol, chain, supply_date]
+    columns:
+      - name: chain
+        description: Chain name as DefiLlama writes it, such as Ethereum or World Chain.
+      - name: circulating
+        description: Circulating supply in the asset's peg currency. Null means the raw value failed to parse.
+        data_tests:
+          - not_null
