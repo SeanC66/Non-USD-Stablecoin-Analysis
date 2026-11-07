@@ -6,3 +6,5 @@ sources:
     schema: raw                # BigQuery dataset
     tables:
       - name: ethereum_token_transfers
+      - name: boc_fx_daily
+      - name: defillama_stablecoin_snapshots
