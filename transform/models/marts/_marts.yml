@@ -47,3 +47,58 @@ models:
         description: supply_native in Canadian dollars.
         data_tests:
           - not_null
+
+  - name: mart_daily_activity
+    description: >
+      One row per asset per day on Ethereum from the asset's first event through
+      the latest day loaded: how much each stablecoin is used, not how much
+      exists. Covers primary and legacy contracts. Days with no events have a
+      row of zeros. The latest day is usually partial.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [activity_date, asset_symbol]
+    columns:
+      - name: activity_date
+        description: Calendar day in UTC.
+        data_tests:
+          - not_null
+          - dbt_utils.sequential_values:
+              arguments:
+                interval: 1
+                datepart: day
+                group_by_columns: [asset_symbol]
+      - name: is_pre_launch
+        description: True before the asset's public_launch_date. Applies to CADD before 2026-05-04, so exclude these days when measuring adoption.
+        data_tests:
+          - not_null
+      - name: transfers
+        description: Transfers between wallets, including zero-value ones. Excludes mints and burns.
+        data_tests:
+          - not_null
+      - name: mints
+        description: Events from the zero address.
+        data_tests:
+          - not_null
+      - name: burns
+        description: Events to the zero address.
+        data_tests:
+          - not_null
+      - name: active_addresses
+        description: Distinct addresses that sent or received a transfer with a non-zero amount. Zero-value transfers are excluded as likely spam. Don't sum across days, since a wallet active on two days would count twice.
+        data_tests:
+          - not_null
+      - name: senders
+        description: Distinct addresses that sent a transfer with a non-zero amount.
+        data_tests:
+          - not_null
+      - name: receivers
+        description: Distinct addresses that received a transfer with a non-zero amount.
+        data_tests:
+          - not_null
+      - name: transfer_volume_native
+        description: Sum of transfer amounts in the asset's peg currency. Excludes mints and burns.
+        data_tests:
+          - not_null
+      - name: largest_transfer_share
+        description: Biggest single transfer divided by the day's volume, showing when one whale dominates a day. Null when the day has no volume.
