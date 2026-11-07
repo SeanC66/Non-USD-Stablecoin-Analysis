@@ -1,0 +1,24 @@
+{
+  "name": "stablecoin-dashboard",
+  "version": "0.0.1",
+  "private": true,
+  "scripts": {
+    "build": "EVIDENCE_BUILD_DIR=./build/Non-USD-Stablecoin-Analysis evidence build",
+    "build:strict": "EVIDENCE_BUILD_DIR=./build/Non-USD-Stablecoin-Analysis evidence build:strict",
+    "dev": "evidence dev --open /",
+    "sources": "evidence sources",
+    "sources:strict": "evidence sources --strict",
+    "preview": "evidence preview"
+  },
+  "engines": {
+    "npm": ">=7.0.0",
+    "node": ">=22.0.0 <23"
+  },
+  "type": "module",
+  "dependencies": {
+    "@evidence-dev/bigquery": "2.0.12",
+    "@evidence-dev/core-components": "5.4.2",
+    "@evidence-dev/evidence": "40.1.8",
+    "typescript": "5.4.2"
+  }
+}

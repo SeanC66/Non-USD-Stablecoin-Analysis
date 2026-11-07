@@ -1,0 +1,8 @@
+# gcloud-cli means Application Default Credentials: gcloud locally, Workload
+# Identity Federation in CI. No keys, so this file is safe to commit.
+name: marts
+type: bigquery
+options:
+  project_id: crypto-504119
+  location: US
+  authenticator: gcloud-cli
