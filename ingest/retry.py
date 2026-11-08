@@ -12,7 +12,9 @@ import requests
 log = logging.getLogger(__name__)
 
 DEFAULT_MAX_ATTEMPTS = 4
-DEFAULT_BACKOFF_FACTOR = 1.0
+DEFAULT_BACKOFF_FACTOR = 5.0
+# Upper bound on a server-supplied Retry-After, so a bad value cannot stall the job.
+MAX_RETRY_AFTER = 60.0
 
 
 def get(
@@ -33,7 +35,7 @@ def get(
       - HTTP 5xx (Internal Server Error, Bad Gateway, Cloudflare 520-524, etc.)
 
     Does NOT retry client errors (4xx other than 429).
-    Honours the Retry-After header when present.
+    Honours the Retry-After header when present, clamped to [0, MAX_RETRY_AFTER].
     """
     requester = session if session is not None else requests
 
@@ -45,7 +47,7 @@ def get(
                 retry_after = resp.headers.get("Retry-After")
                 if retry_after:
                     try:
-                        delay = float(retry_after)
+                        delay = max(0.0, min(float(retry_after), MAX_RETRY_AFTER))
                     except (ValueError, TypeError):
                         delay = None
                 if delay is None:

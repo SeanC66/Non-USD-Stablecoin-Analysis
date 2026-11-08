@@ -3,7 +3,7 @@ from __future__ import annotations
 import requests
 import pytest
 
-from ingest import http
+from ingest import retry
 
 
 class FakeResponse:
@@ -36,7 +36,7 @@ def test_retries_on_522_and_then_succeeds():
     delays: list[float] = []
     session = FakeSession([FakeResponse(522), FakeResponse(200, "OK")])
 
-    resp = http.get(
+    resp = retry.get(
         "https://api.example.com/data",
         session=session,
         sleep_fn=delays.append,
@@ -54,7 +54,7 @@ def test_gives_up_after_n_attempts():
     delays: list[float] = []
     session = FakeSession([FakeResponse(522), FakeResponse(522), FakeResponse(522)])
 
-    resp = http.get(
+    resp = retry.get(
         "https://api.example.com/data",
         session=session,
         max_attempts=3,
@@ -72,7 +72,7 @@ def test_does_not_retry_404():
     delays: list[float] = []
     session = FakeSession([FakeResponse(404)])
 
-    resp = http.get(
+    resp = retry.get(
         "https://api.example.com/missing",
         session=session,
         sleep_fn=delays.append,
@@ -89,7 +89,7 @@ def test_honours_retry_after_header():
     delays: list[float] = []
     session = FakeSession([FakeResponse(429, headers={"Retry-After": "5"}), FakeResponse(200, "OK")])
 
-    resp = http.get(
+    resp = retry.get(
         "https://api.example.com/rate-limited",
         session=session,
         sleep_fn=delays.append,
@@ -108,7 +108,7 @@ def test_retries_on_connection_error_and_timeout():
         FakeResponse(200, "Recovered"),
     ])
 
-    resp = http.get(
+    resp = retry.get(
         "https://api.example.com/flaky",
         session=session,
         sleep_fn=delays.append,
@@ -118,3 +118,33 @@ def test_retries_on_connection_error_and_timeout():
     assert resp.text == "Recovered"
     assert len(session.calls) == 3
     assert len(delays) == 2
+
+
+@pytest.mark.parametrize(
+    ("header", "expected"),
+    [("3600", retry.MAX_RETRY_AFTER), ("-5", 0.0)],
+)
+def test_clamps_retry_after_header(header, expected):
+    delays: list[float] = []
+    session = FakeSession([FakeResponse(429, headers={"Retry-After": header}), FakeResponse(200, "OK")])
+
+    resp = retry.get(
+        "https://api.example.com/rate-limited",
+        session=session,
+        sleep_fn=delays.append,
+    )
+
+    assert resp.status_code == 200
+    assert delays == [expected]
+    assert retry.MAX_RETRY_AFTER <= 60
+
+
+def test_default_backoff_waits_long_enough_for_a_slow_origin():
+    delays: list[float] = []
+    session = FakeSession([FakeResponse(522)] * retry.DEFAULT_MAX_ATTEMPTS)
+
+    resp = retry.get("https://api.example.com/down", session=session, sleep_fn=delays.append)
+
+    assert resp.status_code == 522
+    assert len(delays) == retry.DEFAULT_MAX_ATTEMPTS - 1
+    assert sum(delays) >= 35  # 5 + 10 + 20 plus jitter
