@@ -20,6 +20,7 @@ import requests
 from google.cloud import bigquery
 
 from ingest import bq as bqh
+from ingest import http
 from ingest.config import Asset, load_assets, table_id
 
 log = logging.getLogger(__name__)
@@ -77,7 +78,7 @@ def run(client: bigquery.Client) -> dict:
         description="Daily raw JSON snapshots from the DefiLlama stablecoins API.",
     )
     session = requests.Session()
-    listing = session.get(f"{BASE_URL}/stablecoins", params={"includePrices": "true"}, timeout=60)
+    listing = http.get(f"{BASE_URL}/stablecoins", params={"includePrices": "true"}, timeout=60, session=session)
     listing.raise_for_status()
     matches = match_assets(listing.json().get("peggedAssets", []), load_assets())
 
@@ -86,7 +87,7 @@ def run(client: bigquery.Client) -> dict:
     for symbol, entry in matches.items():
         detail = None
         if entry is not None:
-            resp = session.get(f"{BASE_URL}/stablecoin/{entry['id']}", timeout=120)
+            resp = http.get(f"{BASE_URL}/stablecoin/{entry['id']}", timeout=120, session=session)
             resp.raise_for_status()
             detail = resp.text
         else:

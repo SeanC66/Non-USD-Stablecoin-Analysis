@@ -15,6 +15,7 @@ import requests
 from google.cloud import bigquery
 
 from ingest import bq as bqh
+from ingest import http
 from ingest.config import table_id
 
 log = logging.getLogger(__name__)
@@ -69,7 +70,7 @@ def run(client: bigquery.Client) -> dict:
         description="Bank of Canada daily exchange rates (Valet FX_RATES_DAILY), long format.",
     )
     start = _start_date(client)
-    resp = requests.get(URL, params={"start_date": start.isoformat()}, timeout=60)
+    resp = http.get(URL, params={"start_date": start.isoformat()}, timeout=60)
     resp.raise_for_status()
     rows = parse(resp.json())
     merged = bqh.merge_rows(
