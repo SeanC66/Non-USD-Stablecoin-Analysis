@@ -15,7 +15,7 @@ with daily as (
                 when 'mint' then amount
                 when 'burn' then -amount
             end) as net_issuance
-    from {{ ref('stg_ethereum__token_transfers') }}
+    from {{ ref('int_token_transfers') }}
         where transfer_type in ('mint', 'burn')
         and counts_toward_supply = true
     group by chain, contract_address, asset_symbol, block_date

@@ -52,7 +52,7 @@ seeds:
           - not_null
           - accepted_values:
               arguments:
-                values: [ethereum, base]
+                values: [ethereum, base, polygon, avalanche, arbitrum]
       - name: asset_symbol
         data_tests:
           - not_null

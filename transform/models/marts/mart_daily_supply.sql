@@ -5,8 +5,12 @@ with assets as (
     select * from {{ ref('assets') }}
 ),
 
+-- Ethereum only: the on-chain figure is eth_supply_onchain, and supply on other
+-- chains comes from DefiLlama's all-chain total. Summing other chains' mints and
+-- burns in here would change what the column means.
 transfers as (
-    select * from {{ ref('stg_ethereum__token_transfers') }}
+    select * from {{ ref('int_token_transfers') }}
+    where chain = 'ethereum'
 ),
 
 fx_rates as (

@@ -13,7 +13,10 @@ clean-targets: ["target", "dbt_packages"]
 # Datasets land under exact names (see macros/generate_schema_name.sql):
 #   raw      — written by ingest/, never by dbt
 #   seeds    — reference data (contract registry, asset list)
-#   staging  — one cleaned view per source
+#   staging  — one cleaned view per source, plus the intermediate views
+#              (models/intermediate/), which union and reshape staging for the
+#              marts. They share the dataset so the pipeline's service account
+#              needs no new grant (docs/gcp_setup.md).
 #   marts    — analysis-ready tables
 seeds:
   stablecoin_monitor:
@@ -22,6 +25,9 @@ seeds:
 models:
   stablecoin_monitor:
     staging:
+      +schema: staging
+      +materialized: view
+    intermediate:
       +schema: staging
       +materialized: view
     marts:

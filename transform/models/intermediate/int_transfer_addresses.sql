@@ -1,5 +1,6 @@
 -- One row per side of every transfer that counts as usage. Shared by the daily
--- and weekly activity marts, so both count addresses the same way.
+-- and weekly activity marts, so both count addresses the same way. chain is
+-- carried for per-chain analysis; the activity marts count across chains.
 
 {{ config(materialized='ephemeral') }}
 
@@ -9,13 +10,14 @@
 -- any wallet, so they look like spam rather than usage, and 11% of EURC's
 -- addresses appear in nothing else.
 with transfers as (
-    select * from {{ ref('stg_ethereum__token_transfers') }}
+    select * from {{ ref('int_token_transfers') }}
     where contract_role in ('primary', 'legacy')
         and transfer_type = 'transfer'
         and amount > 0
 )
 
 select
+    chain,
     asset_symbol,
     block_date as activity_date,
     'sender' as side,
@@ -25,6 +27,7 @@ from transfers
 union all
 
 select
+    chain,
     asset_symbol,
     block_date as activity_date,
     'receiver' as side,

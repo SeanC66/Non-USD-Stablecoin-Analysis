@@ -1,6 +1,7 @@
 -- One row per asset per week, Monday to Sunday. Active addresses are counted
 -- again at this grain: summing the daily figure would count a wallet once for
--- every day it was active.
+-- every day it was active. Like mart_daily_activity, it counts across chains,
+-- so a wallet active on two chains in a week counts once.
 
 with daily_activity as (
     select * from {{ ref('mart_daily_activity') }}
