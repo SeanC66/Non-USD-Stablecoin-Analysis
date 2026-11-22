@@ -50,6 +50,7 @@ jobs:
       # Loads seeds, builds every model and runs every test against fresh data.
       # A broken model or a failing data test turns the daily run red.
       - name: Build and test dbt project
+        if: ${{ !cancelled() }}
         working-directory: transform
         env:
           DBT_PROFILES_DIR: .
