@@ -40,7 +40,7 @@ models:
         data_tests:
           - accepted_values:
               arguments:
-                values: [EUR, SGD, BRL, RUB, USD]
+                values: [EUR, SGD, BRL, RUB, JPY, AUD, USD]
       - name: cad_per_unit
         description: Canadian dollars per one unit of the currency.
         data_tests:

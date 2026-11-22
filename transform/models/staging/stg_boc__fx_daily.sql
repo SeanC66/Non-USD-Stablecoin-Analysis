@@ -16,4 +16,4 @@ select
 
 from rates
 
-where series_id in ('FXEURCAD', 'FXSGDCAD', 'FXBRLCAD', 'FXRUBCAD', 'FXUSDCAD')
+where series_id in ('FXEURCAD', 'FXSGDCAD', 'FXBRLCAD', 'FXRUBCAD', 'FXJPYCAD', 'FXAUDCAD', 'FXUSDCAD')

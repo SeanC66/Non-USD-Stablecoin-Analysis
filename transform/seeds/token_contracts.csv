@@ -14,6 +14,9 @@ ethereum,0x5256c4307e0ef634c072c9163b6d0d8c281526b8,XSGD,6,test,false,false,cryp
 base,0x0a4c9cb2778ab3302996a34befcf9a8bc288c33b,XSGD,6,primary,true,false,support.straitsx.com,Decimals assumed equal to Ethereum; checked on-chain by the Base loader
 ethereum,0x420412e765bfa6d85aaac94b4f7b708c89be2e2b,BRZ,4,legacy,false,false,crypto_ethereum.tokens,2019 contract; ~150M on-chain but 93.4% sits in two wallets and 2% is stuck in the token contract; excluded from supply (see #16)
 ethereum,0x01d33fd36ec67c6ada32cf36b31e88ee190b1839,BRZ,18,primary,true,false,crypto_ethereum.tokens,2023 migrated contract; decimals differ from the 2019 contract by 14
+ethereum,0xe7c3d8c9a439fede00d2600032d5db0be71c3c29,JPYC,18,primary,true,true,github.com/jpycoin,Same address on Polygon Avalanche and Kaia; decimals checked on-chain
+ethereum,0x4cce605ed955295432958d8951d0b176c10720d5,AUDD,6,primary,true,true,audddigital.tawk.help/article/how-to-validate-the-authenticity-of-your-audd,
+base,0x449b3317a6d1efb1bc3ba0700c9eaa4ffff4ae65,AUDD,6,primary,true,false,DefiLlama and CoinGecko AUDD listings,Not on AUDD's official validation page; symbol AUDD and 6 decimals checked on-chain
 ethereum,0x6fa0be17e4bea2fcfa22ef89bf8ac9aab0ab0fc9,A7A5,6,primary,true,false,coingecko.com/en/coins/a7a5,
 ethereum,0x4c743b2744ac10bc4e5c48781fa58c4834ef5f74,A7A5,6,test,false,false,crypto_ethereum.tokens,No transfers
 ethereum,0xcc66bf11d5128a48a693febbdc39ad954c1b5ff7,A7A5,6,test,false,false,crypto_ethereum.tokens,No transfers
