@@ -78,4 +78,4 @@ year costs more than the two years before it.
 
 | Date (UTC) | Assets | Window | Estimate (GB) | GB billed | Rows inserted | Job ID |
 |---|---|---|---:|---:|---:|---|
-| TBD | JPYC, AUDD | 2023-09-07 → 2026-11-23 | 671.38 | TBD | TBD | TBD |
+| 2026-11-22 | JPYC, AUDD | 2023-09-07 → 2026-11-23 | 671.38 | 671.43 | 126,925 (AUDD 22,334; JPYC 104,591) | `0464c490-f678-4a3f-8851-f341885132b4` |
