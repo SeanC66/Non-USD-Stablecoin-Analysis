@@ -1,5 +1,10 @@
--- One row per asset per day: how much each stablecoin is actually used on
--- Ethereum, from the asset's first event through the latest day loaded.
+-- One row per asset per day: how much each stablecoin is actually used, from
+-- the asset's first event through the latest day loaded.
+--
+-- Counts are summed across every chain in int_token_transfers (only Ethereum
+-- today), so chain is not part of the grain. Usage of an asset is the question
+-- here, wherever it happens; a per-chain view can group int_token_transfers by
+-- chain directly.
 
 with assets as (
     select * from {{ ref('assets') }}
@@ -9,7 +14,7 @@ with assets as (
 -- are, even when they're outside supply (see #16). A7A5 stays in: #17 only rules
 -- out its supply.
 transfers as (
-    select * from {{ ref('stg_ethereum__token_transfers') }}
+    select * from {{ ref('int_token_transfers') }}
     where contract_role in ('primary', 'legacy')
 ),
 

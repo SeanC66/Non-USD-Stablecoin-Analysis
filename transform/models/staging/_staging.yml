@@ -4,11 +4,8 @@ models:
   - name: stg_ethereum__token_transfers
     description: >
       One row per ERC-20 Transfer event on Ethereum for contracts in the
-      registry seed, with the asset label and a decimal-scaled amount.
-    data_tests:
-      - dbt_utils.unique_combination_of_columns:
-          arguments:
-            combination_of_columns: [transaction_hash, log_index]
+      registry seed, with the asset label and a decimal-scaled amount. Output
+      columns must match int_token_transfers, which tests uniqueness.
     columns:
       - name: asset_symbol
         description: Null means the contract is missing from seeds/token_contracts.csv.

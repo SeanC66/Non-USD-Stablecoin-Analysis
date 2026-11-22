@@ -1,0 +1,46 @@
+version: 2
+
+models:
+  - name: int_token_transfers
+    description: >
+      One row per token transfer event on every chain we load, unioned from each
+      chain's staging model into one shape. Marts read this, never a stg_*
+      transfer model.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [chain, transaction_hash, log_index]
+    columns:
+      - name: chain
+        description: Lower-case chain name, matching seeds/token_contracts.csv.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [ethereum, base, polygon, avalanche, arbitrum]
+      - name: asset_symbol
+        description: Null means the contract is missing from seeds/token_contracts.csv.
+        data_tests:
+          - not_null
+      - name: amount
+        description: Token amount scaled by the contract's decimals.
+        data_tests:
+          - not_null
+      - name: transfer_type
+        description: mint (from the zero address), burn (to the zero address) or transfer.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [mint, burn, transfer]
+
+  - name: int_transfer_addresses
+    description: >
+      One row per side (sender or receiver) of every transfer that counts as
+      usage: primary and legacy contracts, wallet-to-wallet, non-zero amount.
+      Ephemeral, shared by mart_daily_activity and mart_weekly_activity so both
+      count addresses the same way.
+    columns:
+      - name: side
+        description: sender or receiver.
+      - name: address
+        description: The wallet on that side of the transfer.
