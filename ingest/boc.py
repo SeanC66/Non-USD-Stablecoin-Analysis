@@ -1,7 +1,7 @@
 """Bank of Canada daily FX rates (Valet API, group FX_RATES_DAILY).
 
 All 27 published currency series are loaded in long format (date, series,
-rate). The models need USD, EUR, SGD, BRL and RUB against CAD to put every
+rate). The models need USD, EUR, SGD, BRL, RUB, JPY and AUD against CAD to put every
 stablecoin's supply on one scale. Some series stop or skip dates, so the
 loader keeps whatever is published and the models handle gaps.
 """

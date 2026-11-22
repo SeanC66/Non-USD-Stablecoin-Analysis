@@ -6,4 +6,6 @@ CADC,CADC,CAD,LOON,canadian,,false,transfers,
 EURC,EURC,EUR,Circle Internet Financial Europe SAS,benchmark,,false,transfers,
 XSGD,XSGD,SGD,StraitsX,benchmark,,false,transfers,
 BRZ,BRZ,BRL,Transfero,benchmark,,false,transfers,
+JPYC,JPY Coin,JPY,JPYC Inc,benchmark,2025-10-27,false,transfers,Electronic payment instrument under Japan's Payment Services Act; tracks only the e-money contract and not the older prepaid JPYC; most minted supply sits in two issuer treasury wallets so totalSupply overstates circulation (see #11)
+AUDD,AUDD,AUD,AUDC Pty Ltd (majority owned by Novatti Group),benchmark,2022-11-01,false,transfers,Launched on Stellar on 2022-11-01 per Novatti; Stellar is the largest chain and is not ingested so Ethereum and Base are a partial view
 A7A5,A7A5,RUB,Old Vector LLC,case_study,,true,external,Sanctioned by the US UK and EU; mainly circulates on Tron so Ethereum is a partial view; supply changes outside standard events so use DefiLlama (see #17)
