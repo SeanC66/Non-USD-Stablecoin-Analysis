@@ -61,7 +61,9 @@ python -m ingest ethereum boc defillama
 cd transform
 cp profiles.example.yml profiles.yml
 DBT_PROFILES_DIR=. dbt deps
-DBT_PROFILES_DIR=. dbt build
+# Without a prefix, dbt writes to the production seeds/staging/marts datasets
+# the dashboard reads. Use a prefix for local work: dev_seeds, dev_staging, dev_marts.
+DBT_PROFILES_DIR=. DBT_DATASET_PREFIX=dev_ dbt build
 
 # Preview the dashboard
 cd ../reports
