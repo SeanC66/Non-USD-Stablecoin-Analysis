@@ -148,3 +148,31 @@ def test_default_backoff_waits_long_enough_for_a_slow_origin():
     assert resp.status_code == 522
     assert len(delays) == retry.DEFAULT_MAX_ATTEMPTS - 1
     assert sum(delays) >= 35  # 5 + 10 + 20 plus jitter
+
+
+class FakePostSession(FakeSession):
+    def post(self, url: str, json=None, headers=None, timeout: float = 60):
+        self.calls.append({"url": url, "json": json, "headers": headers, "timeout": timeout})
+        item = self.responses.pop(0)
+        if isinstance(item, Exception):
+            raise item
+        return item
+
+
+def test_post_retries_408_and_rebuilds_headers_each_attempt():
+    delays: list[float] = []
+    tokens = iter(["t1", "t2"])
+    session = FakePostSession([FakeResponse(408), FakeResponse(200, "OK")])
+
+    resp = retry.post(
+        "https://api.example.com/query",
+        json={"sql": "SELECT 1"},
+        headers=lambda: {"Authorization": next(tokens)},
+        session=session,
+        sleep_fn=delays.append,
+    )
+
+    assert resp.status_code == 200
+    assert [c["headers"]["Authorization"] for c in session.calls] == ["t1", "t2"]
+    assert session.calls[0]["json"] == {"sql": "SELECT 1"}
+    assert len(delays) == 1

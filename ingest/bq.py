@@ -57,6 +57,72 @@ def ensure_table(
     return table_ref
 
 
+def _load_staging(bq: bigquery.Client, rows: list[dict], schema: list[bigquery.SchemaField], source: str) -> str:
+    """Load rows into a short-lived staging table with a free load job."""
+    staging = f"{PROJECT}.{RAW_DATASET}._staging_{uuid.uuid4().hex[:12]}"
+    staging_table = bigquery.Table(staging, schema=schema)
+    staging_table.expires = datetime.now(timezone.utc) + timedelta(hours=1)
+    bq.create_table(staging_table)
+    load_config = bigquery.LoadJobConfig(
+        schema=schema,
+        write_disposition=bigquery.WriteDisposition.WRITE_TRUNCATE,
+        labels={**JOB_LABELS, "source": source},
+    )
+    try:
+        bq.load_table_from_json(rows, staging, job_config=load_config).result()
+    except Exception:
+        bq.delete_table(staging, not_found_ok=True)
+        raise
+    return staging
+
+
+def insert_new_rows(
+    bq: bigquery.Client,
+    target: str,
+    rows: list[dict],
+    schema: list[bigquery.SchemaField],
+    key: list[str],
+    partition_field: str,
+    source: str = "adhoc",
+) -> int:
+    """Load rows into a staging table, then INSERT only keys not yet in `target`.
+
+    The same pattern as the Ethereum load (see ingest/sql/ethereum_incremental.sql):
+    the NOT EXISTS lookup only reads `target` partitions from the earliest staged
+    `partition_field` onward, so it stays cheap as the table grows. That relies on
+    a key always carrying the same partition value, which holds for on-chain
+    events (a log's block timestamp never changes). Duplicate keys within `rows`
+    are collapsed to one. Returns the number of rows inserted.
+    """
+    if not rows:
+        return 0
+
+    earliest = min(datetime.fromisoformat(str(r[partition_field]).replace("Z", "+00:00")) for r in rows)
+    start_ts = f"TIMESTAMP '{earliest.astimezone(timezone.utc).strftime('%Y-%m-%d %H:%M:%S.%f')}+00'"
+    staging = _load_staging(bq, rows, schema, source)
+    try:
+        columns = ", ".join(f.name for f in schema)
+        select_cols = ", ".join(f"s.{f.name}" for f in schema)
+        on = " AND ".join(f"t.{k} = s.{k}" for k in key)
+        partition_by = ", ".join(f"s.{k}" for k in key)
+        sql = f"""
+            INSERT INTO `{target}` ({columns})
+            SELECT {select_cols}
+            FROM `{staging}` AS s
+            WHERE NOT EXISTS (
+                SELECT 1 FROM `{target}` AS t
+                WHERE t.{partition_field} >= {start_ts} AND {on}
+            )
+            QUALIFY ROW_NUMBER() OVER (PARTITION BY {partition_by} ORDER BY {partition_by}) = 1
+        """
+        job = run_query(bq, sql, source=source)
+        inserted = job.num_dml_affected_rows or 0
+        log.info("inserted %s new rows into %s (%s staged)", inserted, target, len(rows))
+        return inserted
+    finally:
+        bq.delete_table(staging, not_found_ok=True)
+
+
 def merge_rows(
     bq: bigquery.Client,
     target: str,
