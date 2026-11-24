@@ -20,7 +20,7 @@ models:
                 datepart: day
                 group_by_columns: [asset_symbol]
       - name: eth_supply_onchain
-        description: Running mints minus burns on Ethereum, for contracts that count toward supply. Null for external assets (see #17).
+        description: Circulating supply on Ethereum, for contracts that count toward supply. Running mints minus burns, less balances held by wallets in the supply_excluded_holders seed (JPYC's issuer treasury, see #11). Null for external assets (see #17).
       - name: eth_supply_defillama
         description: DefiLlama's Ethereum figure, for reconciliation. It reflects the close of the day before, so compare it with the prior day's eth_supply_onchain. Skipped days carry the last figure.
       - name: total_supply_defillama

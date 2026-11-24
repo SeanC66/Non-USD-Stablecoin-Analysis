@@ -1,0 +1,3 @@
+chain,asset_symbol,holder_address,reason,source,notes
+ethereum,JPYC,0x8549e82239a88f463ab6e55ad1895b629a00def3,issuer_treasury,DefiLlama JPYC config (stablecoin id 355) lists it as unreleased,Pre-minted inventory held by JPYC Inc; not in users' hands. See #11.
+ethereum,JPYC,0xb808af91bdc577bfb3f9c91470f3286dd076e5c1,issuer_treasury,DefiLlama JPYC config (stablecoin id 355) lists it as unreleased,Pre-minted inventory held by JPYC Inc; not in users' hands. See #11.
