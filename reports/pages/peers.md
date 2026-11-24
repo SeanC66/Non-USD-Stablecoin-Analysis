@@ -60,7 +60,7 @@ order by s.supply_cad desc
     <Column id=transfers title="Transfers, last full week" fmt="#,##0"/>
 </DataTable>
 
-Supply covers all chains, except BRZ, which is Ethereum only. Activity is Ethereum only for every coin, so it understates coins with more of their use elsewhere.
+Supply covers all chains, except BRZ, which is Ethereum only. Activity covers Ethereum, plus Base for CADD, CADC, XSGD and AUDD (not EURC yet), so it understates coins with more of their use elsewhere.
 
 ## Supply
 
