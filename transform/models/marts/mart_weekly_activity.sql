@@ -29,6 +29,9 @@ weekly_addresses as (
         asset_symbol,
         count(distinct address) as active_addresses
     from {{ ref('int_transfer_addresses') }}
+    -- Same last day as the daily mart, so a chain that's loaded further
+    -- ahead doesn't add addresses from days the daily mart leaves out.
+    where activity_date <= (select max(activity_date) from daily_activity)
     group by activity_week, asset_symbol
 )
 

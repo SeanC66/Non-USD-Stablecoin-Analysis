@@ -11,6 +11,7 @@
 
 {%- set chain_models = [
     'stg_ethereum__token_transfers',
+    'stg_base__token_transfers',
 ] %}
 
 {% for chain_model in chain_models %}

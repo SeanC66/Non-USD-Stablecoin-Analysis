@@ -5,8 +5,9 @@
   Set DBT_DATASET_PREFIX to build into separate datasets instead, so a local
   build doesn't overwrite the production datasets the dashboard reads:
     DBT_DATASET_PREFIX=dev_ dbt build   ->  dev_seeds, dev_staging, dev_marts
-  Sources still read the real `raw` dataset. CI and the daily run leave the
-  variable unset, so production names are unchanged.
+  Sources still read the real `raw` dataset unless DBT_RAW_DATASET is set
+  (models/staging/_sources.yml). CI and the daily run leave both
+  variables unset, so production names are unchanged.
 #}
 {% macro generate_schema_name(custom_schema_name, node) -%}
     {%- set prefix = env_var('DBT_DATASET_PREFIX', '') | trim -%}

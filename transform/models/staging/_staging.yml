@@ -22,6 +22,28 @@ models:
               arguments:
                 values: [mint, burn, transfer]
 
+  - name: stg_base__token_transfers
+    description: >
+      One row per ERC-20 Transfer event on Base for contracts in the registry
+      seed, from the Coinbase CDP SQL API. EURC on Base is not loaded yet
+      (ingest/base.py EXCLUDED_ASSETS, issue #10). Output columns must match
+      int_token_transfers, which tests uniqueness.
+    columns:
+      - name: asset_symbol
+        description: Null means the contract is missing from seeds/token_contracts.csv.
+        data_tests:
+          - not_null
+      - name: amount
+        description: Token amount scaled by the contract's decimals. Null means the raw value failed to parse.
+        data_tests:
+          - not_null
+      - name: transfer_type
+        description: mint (from the zero address), burn (to the zero address) or transfer.
+        data_tests:
+          - accepted_values:
+              arguments:
+                values: [mint, burn, transfer]
+
   - name: stg_boc__fx_daily
     description: >
       One row per date and currency from the Bank of Canada daily rates, for

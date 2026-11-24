@@ -3,8 +3,11 @@ version: 2
 sources:
   - name: raw                  # the name you'll use in SQL
     database: crypto-504119    # GCP project
-    schema: raw                # BigQuery dataset
+    # BigQuery dataset. DBT_RAW_DATASET points a test build at a scratch copy
+    # of raw (such as wt10_raw); CI and the daily run leave it unset.
+    schema: "{{ env_var('DBT_RAW_DATASET', 'raw') }}"
     tables:
       - name: ethereum_token_transfers
+      - name: base_token_transfers
       - name: boc_fx_daily
       - name: defillama_stablecoin_snapshots
