@@ -44,3 +44,30 @@ models:
         description: sender or receiver.
       - name: address
         description: The wallet on that side of the transfer.
+
+  - name: int_onchain_daily_supply
+    description: >
+      One row per chain, asset and day, from the asset's first supply event on
+      that chain through today: circulating supply rebuilt from our own
+      transfers. Applies the supply rules once for every chain: only contracts
+      that count toward supply, never external assets (see #17), and wallets in
+      the supply_excluded_holders seed treated like the zero address (see #11).
+      mart_daily_supply reads the Ethereum rows for eth_supply_onchain, and both
+      supply marts use the rows DefiLlama doesn't cover.
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [chain, asset_symbol, supply_date]
+    columns:
+      - name: chain
+        description: Lower-case chain name, matching seeds/token_contracts.csv.
+        data_tests:
+          - not_null
+      - name: circulating
+        description: Running net issuance into circulation, in the asset's peg currency.
+        data_tests:
+          - not_null
+      - name: defillama_lists_chain
+        description: True when DefiLlama reports this chain for the asset on any day. Only chains where it's false fill DefiLlama's gaps, so no chain is counted from both sources. False today for XSGD on Base, and for assets DefiLlama doesn't list at all (BRZ, QCAD_LEGACY), which the marts leave on Ethereum alone.
+        data_tests:
+          - not_null

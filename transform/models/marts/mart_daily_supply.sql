@@ -5,9 +5,9 @@ with assets as (
     select * from {{ ref('assets') }}
 ),
 
--- Ethereum only: the on-chain figure is eth_supply_onchain, and supply on other
--- chains comes from DefiLlama's all-chain total. Summing other chains' mints and
--- burns in here would change what the column means.
+-- Ethereum only, for when each asset first appears. eth_supply_onchain stays
+-- Ethereum only, and other chains come from DefiLlama's all-chain total, plus
+-- our own figure for chains DefiLlama doesn't list (unlisted_chain_supply).
 transfers as (
     select * from {{ ref('int_token_transfers') }}
     where chain = 'ethereum'
@@ -72,73 +72,40 @@ asset_days as (
         on fa.asset_symbol = a.asset_symbol
 ),
 
--- Wallets whose balance isn't circulating, such as JPYC's pre-minted
--- treasury (see #11). They sit outside circulation like the zero address.
-excluded_holders as (
-    select chain, asset_symbol, holder_address
-    from {{ ref('supply_excluded_holders') }}
+-- Our own supply per chain, rebuilt from transfers. int_onchain_daily_supply
+-- applies the supply rules: contracts that count toward supply, no external
+-- assets (see #17), and excluded holders treated like the zero address (#11).
+onchain_daily as (
+    select * from {{ ref('int_onchain_daily_supply') }}
 ),
 
--- Each supply-relevant transfer, flagged by whether each side is outside
--- circulation: the zero address (mint or burn) or an excluded holder.
-supply_flows as (
-    select
-        t.asset_symbol,
-        t.block_date,
-        t.amount,
-        t.transfer_type = 'mint' or from_excluded.holder_address is not null as from_outside,
-        t.transfer_type = 'burn' or to_excluded.holder_address is not null as to_outside
-    from transfers as t
-    inner join assets as a
-        on t.asset_symbol = a.asset_symbol
-    left join excluded_holders as from_excluded
-        on t.chain = from_excluded.chain
-        and t.asset_symbol = from_excluded.asset_symbol
-        and t.from_address = from_excluded.holder_address
-    left join excluded_holders as to_excluded
-        on t.chain = to_excluded.chain
-        and t.asset_symbol = to_excluded.asset_symbol
-        and t.to_address = to_excluded.holder_address
-    where t.counts_toward_supply
-        and a.supply_method = 'transfers'
-),
-
--- Net change in circulating Ethereum supply per asset per day. Only contracts
--- that count toward supply, and never external assets, whose supply moves
--- outside standard events (see #17). Tokens entering circulation (minted, or
--- released from an excluded holder) add; tokens leaving it subtract. A mint
--- straight into a treasury, or a burn from one, changes nothing.
-daily_net_supply as (
-    select
-        asset_symbol,
-        block_date as supply_date,
-        sum(
-            case
-                when from_outside and not to_outside then amount
-                when to_outside and not from_outside then -amount
-                else 0
-            end
-        ) as net_supply
-    from supply_flows
-    group by asset_symbol, block_date
-),
-
--- Running total. Summing over asset_days rather than daily_net_supply means
--- days with no mints or burns still get a row, carrying the previous total.
+-- Ethereum only. Days before an asset's first Ethereum event are zero, and
+-- external assets are null by design.
 onchain_supply as (
     select
         ad.supply_date,
         ad.asset_symbol,
         case
-            when ad.supply_method = 'transfers' then sum(coalesce(dns.net_supply, 0)) over (
-                partition by ad.asset_symbol
-                order by ad.supply_date
-            )
+            when ad.supply_method = 'transfers' then coalesce(od.circulating, 0)
         end as eth_supply_onchain
     from asset_days as ad
-    left join daily_net_supply as dns
-        on ad.asset_symbol = dns.asset_symbol
-        and ad.supply_date = dns.supply_date
+    left join onchain_daily as od
+        on ad.asset_symbol = od.asset_symbol
+        and ad.supply_date = od.supply_date
+        and od.chain = 'ethereum'
+),
+
+-- Our supply on chains we load transfers for but DefiLlama doesn't list for
+-- the asset, such as XSGD on Base. It tops up DefiLlama's total in
+-- with_headline and never overlaps it: a chain DefiLlama lists is left to it.
+unlisted_chain_supply as (
+    select
+        supply_date,
+        asset_symbol,
+        sum(circulating) as onchain_supply_unlisted_chains
+    from onchain_daily
+    where not defillama_lists_chain
+    group by supply_date, asset_symbol
 ),
 
 -- The first day each chain reports, so a chain only counts from when it starts.
@@ -213,6 +180,10 @@ daily_figures as (
         os.eth_supply_onchain,
         ds.eth_supply_defillama,
         ds.total_supply_defillama,
+        -- Only alongside a DefiLlama total: assets it doesn't list at all (BRZ,
+        -- QCAD_LEGACY) are Ethereum only, already in eth_supply_onchain.
+        if(ds.total_supply_defillama is not null, ucs.onchain_supply_unlisted_chains, null)
+            as onchain_supply_unlisted_chains,
         if(ad.peg_currency = 'CAD', cast(1 as numeric), fxd.cad_per_unit) as cad_per_unit,
         -- RUB stops on 2026-04-30, so A7A5's CAD value goes stale after a week.
         ad.peg_currency != 'CAD' and date_diff(ad.supply_date, fxd.rate_date, day) > 7 as fx_is_stale
@@ -223,18 +194,26 @@ daily_figures as (
     left join defillama_supply as ds
         on ad.asset_symbol = ds.asset_symbol
         and ad.supply_date = ds.supply_date
+    left join unlisted_chain_supply as ucs
+        on ad.asset_symbol = ucs.asset_symbol
+        and ad.supply_date = ucs.supply_date
     left join fx_days as fxd
         on ad.peg_currency = fxd.currency
         and ad.supply_date = fxd.supply_date
 ),
 
--- The headline figure: all chains when DefiLlama has them, otherwise our own
--- Ethereum figure. It jumps on the day an asset switches source, so supply_source
--- says which one a reader is seeing.
+-- The headline figure: all chains when DefiLlama has them, plus our own figure
+-- for chains it doesn't list, otherwise our own Ethereum figure. It jumps on the
+-- day an asset switches source, so supply_source says which one a reader is
+-- seeing. An unlisted chain isn't a switch: its supply starts from its first
+-- mint, so adding it creates no jump.
 with_headline as (
     select
         *,
-        coalesce(total_supply_defillama, eth_supply_onchain) as supply_native,
+        coalesce(
+            total_supply_defillama + coalesce(onchain_supply_unlisted_chains, 0),
+            eth_supply_onchain
+        ) as supply_native,
         if(
             total_supply_defillama is not null,
             'defillama_all_chains',
@@ -252,6 +231,7 @@ select
     eth_supply_onchain,
     eth_supply_defillama,
     total_supply_defillama,
+    onchain_supply_unlisted_chains,
     supply_native,
     supply_source,
     cad_per_unit,

@@ -25,12 +25,14 @@ models:
         description: DefiLlama's Ethereum figure, for reconciliation. It reflects the close of the day before, so compare it with the prior day's eth_supply_onchain. Skipped days carry the last figure.
       - name: total_supply_defillama
         description: DefiLlama's figure summed across chains, each filled forward first. Null before the asset's first DefiLlama date.
+      - name: onchain_supply_unlisted_chains
+        description: Our own circulating supply, from transfers, on chains we load that DefiLlama doesn't list for the asset. Today that's XSGD on Base, from its first mint on 2025-09-18. Same supply rules as eth_supply_onchain. Null when there's no such chain or no DefiLlama total. mart_daily_chain_supply shows it per chain with supply_source onchain_transfers.
       - name: supply_native
-        description: Headline supply in the asset's peg currency. Jumps on the day supply_source changes, which is not real growth.
+        description: Headline supply in the asset's peg currency. total_supply_defillama plus onchain_supply_unlisted_chains when DefiLlama has the asset, otherwise eth_supply_onchain. Jumps on the day supply_source changes, which is not real growth.
         data_tests:
           - not_null
       - name: supply_source
-        description: Which figure supply_native is showing.
+        description: Which figure supply_native is showing. defillama_all_chains is DefiLlama's chains plus onchain_supply_unlisted_chains, if any. Adding an unlisted chain doesn't change the source, since its supply starts from its first mint.
         data_tests:
           - accepted_values:
               arguments:
@@ -146,9 +148,12 @@ models:
 
   - name: mart_daily_chain_supply
     description: >
-      One row per asset, chain and day from DefiLlama: where each stablecoin's
-      supply sits, in its own currency and in CAD. Assets DefiLlama doesn't list
-      (BRZ, QCAD_LEGACY) have no rows.
+      One row per asset, chain and day: where each stablecoin's supply sits, in
+      its own currency and in CAD. Chains come from DefiLlama, plus any chain we
+      load transfers for that DefiLlama doesn't list for the asset (XSGD on
+      Base), filled from our own transfers. Each chain has one source, and
+      chains sum to mart_daily_supply's supply_native. Assets DefiLlama doesn't
+      list (BRZ, QCAD_LEGACY) have no rows.
     data_tests:
       - dbt_utils.unique_combination_of_columns:
           arguments:
@@ -159,9 +164,16 @@ models:
         data_tests:
           - not_null
       - name: chain
-        description: Chain name as DefiLlama writes it, such as Ethereum or World Chain.
+        description: Chain name as DefiLlama writes it, such as Ethereum or World Chain. Chains filled from our transfers are capitalised the same way, such as Base.
         data_tests:
           - not_null
+      - name: supply_source
+        description: Where this chain's figure comes from. defillama is DefiLlama's figure, with skipped days carrying the last one. onchain_transfers is our own supply from mints and burns, for a chain DefiLlama doesn't list for the asset; it follows the same rules as eth_supply_onchain.
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [defillama, onchain_transfers]
       - name: supply_native
         description: Circulating supply on this chain in the asset's peg currency.
         data_tests:
