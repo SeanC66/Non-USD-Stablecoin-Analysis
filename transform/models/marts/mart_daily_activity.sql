@@ -1,5 +1,6 @@
 -- One row per asset per day: how much each stablecoin is actually used, from
--- the asset's first event through the latest day loaded.
+-- the asset's first event through the latest complete UTC day loaded on every
+-- chain (see chain_last_dates).
 --
 -- Counts are summed across every chain in int_token_transfers (Ethereum and Base
 -- today), so chain is not part of the grain. Usage of an asset is the question
@@ -18,22 +19,39 @@ transfers as (
     where contract_role in ('primary', 'legacy')
 ),
 
--- Ends at the latest day every chain has reached rather than today, so a late
--- ingest doesn't look like a day with no activity. Chains load on different
--- schedules (Base from CDP is near real time; Ethereum's public dataset lags),
--- and ending at the furthest chain would show false zeros for assets on the
--- others.
+-- Ends at the latest complete UTC day every chain has reached, never a partial
+-- one. A chain's latest loaded day stops wherever its load stopped: the day of
+-- the run for Base (CDP is near real time, less an hour) and often for
+-- Ethereum, or mid-day on an earlier date when Google's public dataset lags.
+-- That day is undercounted until the next run fills it in.
+--
+-- So a chain counts as complete only through the day before its latest loaded
+-- day: a transfer on day D means the load got past the end of D - 1. Both
+-- chains have transfers within the first half hour of every UTC day, so this
+-- drops a complete day only when a load stops in the last minutes of one, and
+-- then by one day at most. Taking the earliest chain keeps a lagging chain
+-- from showing false zeros, and capping at yesterday guards against a row
+-- stamped in the future. mart_weekly_activity ends here too, and
+-- assert_activity_ends_on_complete_day checks the rule.
 chain_last_dates as (
-    select chain, max(block_date) as last_date
+    select chain, date_sub(max(block_date), interval 1 day) as last_complete_date
     from transfers
     group by chain
+),
+
+activity_end as (
+    select least(
+        min(last_complete_date),
+        date_sub(current_date('UTC'), interval 1 day)
+    ) as last_date
+    from chain_last_dates
 ),
 
 asset_date_ranges as (
     select
         asset_symbol,
         min(block_date) as first_date,
-        (select min(last_date) from chain_last_dates) as last_date
+        (select last_date from activity_end) as last_date
     from transfers
     group by asset_symbol
 ),

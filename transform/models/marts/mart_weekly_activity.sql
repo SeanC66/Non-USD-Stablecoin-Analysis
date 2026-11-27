@@ -13,6 +13,8 @@ weekly_totals as (
         asset_symbol,
         any_value(cohort) as cohort,
         any_value(peg_currency) as peg_currency,
+        -- Days come from the daily mart, which ends on a complete day, so a
+        -- week of 7 is a full week of data.
         count(*) as days_in_week,
         logical_and(is_pre_launch) as is_pre_launch,
         sum(transfers) as transfers,
@@ -29,8 +31,9 @@ weekly_addresses as (
         asset_symbol,
         count(distinct address) as active_addresses
     from {{ ref('int_transfer_addresses') }}
-    -- Same last day as the daily mart, so a chain that's loaded further
-    -- ahead doesn't add addresses from days the daily mart leaves out.
+    -- Same last day as the daily mart, its latest complete day, so neither
+    -- a chain that's loaded further ahead nor the partial day being loaded
+    -- adds addresses from days the daily mart leaves out.
     where activity_date <= (select max(activity_date) from daily_activity)
     group by activity_week, asset_symbol
 )
