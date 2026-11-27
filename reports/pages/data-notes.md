@@ -37,6 +37,8 @@ The Bank of Canada stopped publishing the rouble rate after 2026-04-30. The last
 
 Headline supply uses DefiLlama's all-chains figure when one exists, and our Ethereum figure before that. The first all-chains day can look like sudden growth, so these charts start each coin at that day. QCAD is the exception, because its switch moved supply by only 0.1%.
 
+DefiLlama doesn't track XSGD on Base, so that chain comes from our own Base mints and burns instead, from its first mint on 2025-09-18, and is added to DefiLlama's other chains. It isn't a change of source: Base supply builds up from zero, so it creates no jump.
+
 | Asset | First all-chains day | Change on that day |
 |---|---|---|
 | CADD | 2026-05-04 | +96.2% |
