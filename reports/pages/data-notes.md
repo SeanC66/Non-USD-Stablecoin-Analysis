@@ -51,4 +51,4 @@ CADD's change falls on its launch day, so it can't be read as the effect of laun
 
 - **Zero-value transfers:** these don't count toward active addresses, senders or receivers. Anyone can send one to any wallet, so they look like spam rather than usage, and 11.4% of EURC's addresses appear in nothing else. Spam using tiny non-zero amounts isn't caught.
 - **Before launch:** CADD's activity before its 2026-05-04 launch is flagged and left out of adoption figures.
-- **Ethereum only:** transfers are loaded for Ethereum alone. Base is deferred ([#10](https://github.com/SeanC66/Non-USD-Stablecoin-Analysis/issues/10)), so usage on other chains isn't counted, even where supply is.
+- **Ethereum and Base:** transfers are loaded for Ethereum, and for CADD, CADC, XSGD and AUDD on Base ([#10](https://github.com/SeanC66/Non-USD-Stablecoin-Analysis/issues/10)). EURC on Base isn't loaded yet, and usage on other chains isn't counted, even where supply is. A wallet active on both chains counts once. Activity ends at the latest day every chain has reached.

@@ -11,13 +11,14 @@ Not much, so far, but the newest coin is already the most used and this isn't mu
 1. **CADD leads on usage despite being the newest.** It launched on 2026-05-04 and had 66 active addresses on Ethereum in the week, against 14 for CADC and 4 for QCAD. It's still early: five wallets hold 85.5% of its Ethereum balance.
 2. **Supply isn't usage.** QCAD has about $2.5M CAD in circulation, nearly all on Ethereum, but it moved just 5 times in the week.
 3. **The Canadian market is tiny next to its peers.** CADD, QCAD and CADC total about $8.0M CAD, roughly 1% of EURC's $727M. EURC had 6,046 active addresses in the same week.
-4. **Base is where much of the supply now sits.** It holds half of CADD and 59% of CADC. This project only loads transfers from Ethereum, so usage of both is understated.
+4. **Base is where much of the supply now sits.** It holds half of CADD and 59% of CADC. The figures above use Ethereum transfers alone, so they understate usage of both; Base transfers are now loaded too ([#10](https://github.com/SeanC66/Non-USD-Stablecoin-Analysis/issues/10)).
 
 ## How it works
 
 ```mermaid
 flowchart LR
     A[Ethereum public dataset] --> D[Python ingest]
+    I[Coinbase CDP SQL API: Base] --> D
     B[Bank of Canada FX] --> D
     C[DefiLlama supply] --> D
     D --> E[(BigQuery)]
@@ -38,7 +39,7 @@ GitHub Actions runs the pipeline every morning, tests the data, then rebuilds th
 
 ## Limitations
 
-- **Transfers are Ethereum only.** Base is deferred until there's a data source that doesn't need a paid RPC plan ([#10](https://github.com/SeanC66/Non-USD-Stablecoin-Analysis/issues/10)). Supply covers more chains through DefiLlama, but activity doesn't.
+- **Transfers cover Ethereum and Base.** Base transfers come from the free [Coinbase CDP SQL API](https://docs.cdp.coinbase.com/data/sql-api/welcome) for CADD, CADC, XSGD and AUDD ([#10](https://github.com/SeanC66/Non-USD-Stablecoin-Analysis/issues/10)). EURC on Base is left out for now: its ~31M transfers would use most of a month's free queries, and a partial history would make its activity look like it started recently. It's listed in `EXCLUDED_ASSETS` in [`ingest/base.py`](ingest/base.py). Supply on other chains comes from DefiLlama, and `mart_daily_supply`'s on-chain figure stays Ethereum only.
 - **A7A5's supply is external.** It comes from DefiLlama rather than on-chain events, and A7A5 mainly circulates on Tron, so its Ethereum activity is a partial view.
 - **The rouble rate has stopped.** The Bank of Canada stopped publishing it after 2026-04-30. `mart_daily_supply` carries the last rate forward and sets `fx_is_stale` once it's more than 7 days old, so treat A7A5's CAD value from 2026-05-08 onward with caution.
 - **Supply jumps when its source changes.** Headline supply moves from Ethereum to all chains on each coin's first DefiLlama day, which isn't real growth. For CADD that day is its launch day, so the dashboard's launch chart uses Ethereum alone.
@@ -54,8 +55,12 @@ You'll need Python 3.12, Node 22 and a Google Cloud project. [`docs/gcp_setup.md
 gcloud auth application-default login
 pip install -r requirements.txt
 
-# Load the latest data
-python -m ingest ethereum boc defillama
+# Load the latest data. Base needs a CDP Secret API key in CDP_API_KEY_ID and
+# CDP_API_KEY_SECRET. Its first run backfills each contract from its first
+# transfer (~55 queries); later runs re-read the last 24 hours (--lookback-hours)
+# and skip rows already loaded. --base-max-queries caps CDP queries per run
+# (default 100); a capped run resumes from where it stopped.
+python -m ingest ethereum base boc defillama
 
 # Build and test the models
 cd transform
@@ -64,6 +69,10 @@ DBT_PROFILES_DIR=. dbt deps
 # Without a prefix, dbt writes to the production seeds/staging/marts datasets
 # the dashboard reads. Use a prefix for local work: dev_seeds, dev_staging, dev_marts.
 DBT_PROFILES_DIR=. DBT_DATASET_PREFIX=dev_ dbt build
+# To test a loader without touching raw, load into a scratch dataset
+# (RAW_DATASET=dev_raw python -m ingest ...) and point dbt's sources at it
+# with DBT_RAW_DATASET=dev_raw. The scratch dataset needs every raw table,
+# for example as views over raw.
 
 # Preview the dashboard
 cd ../reports

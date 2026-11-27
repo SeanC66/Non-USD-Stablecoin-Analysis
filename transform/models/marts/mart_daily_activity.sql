@@ -1,7 +1,7 @@
 -- One row per asset per day: how much each stablecoin is actually used, from
 -- the asset's first event through the latest day loaded.
 --
--- Counts are summed across every chain in int_token_transfers (only Ethereum
+-- Counts are summed across every chain in int_token_transfers (Ethereum and Base
 -- today), so chain is not part of the grain. Usage of an asset is the question
 -- here, wherever it happens; a per-chain view can group int_token_transfers by
 -- chain directly.
@@ -18,13 +18,22 @@ transfers as (
     where contract_role in ('primary', 'legacy')
 ),
 
--- Ends at the latest day loaded rather than today, so a late ingest doesn't
--- look like a day with no activity.
+-- Ends at the latest day every chain has reached rather than today, so a late
+-- ingest doesn't look like a day with no activity. Chains load on different
+-- schedules (Base from CDP is near real time; Ethereum's public dataset lags),
+-- and ending at the furthest chain would show false zeros for assets on the
+-- others.
+chain_last_dates as (
+    select chain, max(block_date) as last_date
+    from transfers
+    group by chain
+),
+
 asset_date_ranges as (
     select
         asset_symbol,
         min(block_date) as first_date,
-        (select max(block_date) from transfers) as last_date
+        (select min(last_date) from chain_last_dates) as last_date
     from transfers
     group by asset_symbol
 ),

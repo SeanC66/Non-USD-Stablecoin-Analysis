@@ -1,200 +1,222 @@
-from datetime import timezone
+import re
+from datetime import datetime, timezone
 
 import pytest
 
-from ingest.base import TRANSFER_TOPIC, Rpc, RpcError, block_timestamps, decode_transfer, fetch_logs
-
-FROM = "0x000000000000000000000000" + "ab" * 20
-TO = "0x000000000000000000000000" + "cd" * 20
-
-
-def make_log(**overrides):
-    log = {
-        "address": "0x16F93eBC5320C89EfC8701577efe49d14A276a06",
-        "topics": [TRANSFER_TOPIC, FROM, TO],
-        "data": hex(250 * 10**18),
-        "transactionHash": "0xABC",
-        "logIndex": "0x1f",
-        "blockNumber": "0x10",
-        "removed": False,
-    }
-    log.update(overrides)
-    return log
-
-
-def test_decodes_erc20_transfer_and_lowercases_addresses():
-    row = decode_transfer(make_log())
-    assert row == {
-        "token_address": "0x16f93ebc5320c89efc8701577efe49d14a276a06",
-        "from_address": "0x" + "ab" * 20,
-        "to_address": "0x" + "cd" * 20,
-        "value": str(250 * 10**18),
-        "transaction_hash": "0xabc",
-        "log_index": 31,
-        "block_number": 16,
-    }
-
-
-def test_value_beyond_int64_is_kept_exact_as_string():
-    row = decode_transfer(make_log(data=hex(2**200)))
-    assert row["value"] == str(2**200)
-
-
-def test_empty_data_is_zero():
-    assert decode_transfer(make_log(data="0x"))["value"] == "0"
-
-
-@pytest.mark.parametrize(
-    "overrides",
-    [
-        {"topics": [TRANSFER_TOPIC, FROM, TO, "0x01"]},  # ERC-721 transfer
-        {"topics": ["0x" + "00" * 32, FROM, TO]},  # different event
-        {"removed": True},  # reorged-out log
-    ],
+from ingest import base
+from ingest.base import (
+    CdpClient,
+    CdpError,
+    QueryBudgetExceeded,
+    build_query,
+    contracts_to_load,
+    fetch_transfers,
+    load_pages,
+    parse_row,
+    plan_scans,
 )
-def test_ignores_non_erc20_logs(overrides):
-    assert decode_transfer(make_log(**overrides)) is None
+
+CADD = "0x16f93ebc5320c89efc8701577efe49d14a276a06"
+CUTOFF = datetime(2026, 11, 22, 12, 0, tzinfo=timezone.utc)
 
 
-class FakeRpc:
-    """Refuses getLogs ranges wider than `limit` blocks, like many providers."""
-
-    def __init__(self, limit=500, max_requests=None):
-        self.limit = limit
-        self.max_requests = max_requests
-        self.ranges = []  # successful ranges only
-        self.requests = []  # every attempted range, including rejected ones
-
-    def call(self, method, params):
-        assert method == "eth_getLogs"
-        lo, hi = int(params[0]["fromBlock"], 16), int(params[0]["toBlock"], 16)
-        self.requests.append((lo, hi))
-        if self.max_requests is not None and len(self.requests) > self.max_requests:
-            raise AssertionError(f"exceeded {self.max_requests} getLogs requests")
-        if hi - lo + 1 > self.limit:
-            raise RpcError(f"query exceeds max block range {self.limit}")
-        self.ranges.append((lo, hi))
-        return []
-
-    def batch(self, calls):
-        return [{"timestamp": hex(1_700_000_000 + int(params[0], 16) * 2)} for _, params in calls]
-
-
-def test_fetch_logs_narrows_range_and_covers_every_block_once():
-    rpc = FakeRpc(limit=500)
-    list(fetch_logs(rpc, "0xabc", start=1_000, end=9_999, chunk=4_000))
-    covered = [b for lo, hi in rpc.ranges for b in range(lo, hi + 1)]
-    assert covered == list(range(1_000, 10_000))
-    assert all(hi - lo + 1 <= 500 for lo, hi in rpc.ranges)
-
-
-def test_fetch_logs_reraises_non_range_errors():
-    class Broken(FakeRpc):
-        def call(self, method, params):
-            raise RpcError("execution reverted")
-
-    with pytest.raises(RpcError):
-        list(fetch_logs(Broken(), "0xabc", start=0, end=10))
-
-
-def test_fetch_logs_default_reaches_five_block_cap_under_30_calls():
-    rpc = FakeRpc(limit=5, max_requests=30)
-    list(fetch_logs(rpc, "0xabc", start=0, end=99))
-    covered = [b for lo, hi in rpc.ranges for b in range(lo, hi + 1)]
-    assert covered == list(range(0, 100))
-    assert all(hi - lo + 1 <= 5 for lo, hi in rpc.ranges)
-    assert len(rpc.requests) <= 30
-
-
-def test_fetch_logs_short_tail_shrinks_by_actual_span_without_resending_rejection():
-    rpc = FakeRpc(limit=5, max_requests=10)
-    list(fetch_logs(rpc, "0xabc", start=0, end=7, chunk=100))
-    assert rpc.requests == [(0, 7), (0, 3), (4, 7)]
-    covered = [b for lo, hi in rpc.ranges for b in range(lo, hi + 1)]
-    assert covered == list(range(0, 8))
-
-
-def test_fetch_logs_single_block_range_error_fails_fast():
-    rpc = FakeRpc(limit=0, max_requests=3)
-    with pytest.raises(RpcError, match="max block range 0"):
-        list(fetch_logs(rpc, "0xabc", start=42, end=42))
-    assert rpc.requests == [(42, 42)]
-
-
-def test_fetch_logs_honors_explicit_min_chunk_floor_and_reraises():
-    rpc = FakeRpc(limit=5, max_requests=10)
-    with pytest.raises(RpcError, match="max block range 5"):
-        list(fetch_logs(rpc, "0xabc", start=0, end=99, chunk=100, min_chunk=10))
-    assert len(rpc.requests) == 5
-    assert rpc.requests[-1] == (0, 9)
-    assert all(hi - lo + 1 >= 10 for lo, hi in rpc.requests)
-
-
-def test_fetch_logs_never_exceeds_explicit_max_chunk():
-    rpc = FakeRpc(limit=10_000)
-    list(fetch_logs(rpc, "0xabc", start=0, end=999, chunk=5_000, max_chunk=100))
-    covered = [b for lo, hi in rpc.ranges for b in range(lo, hi + 1)]
-    assert covered == list(range(0, 1_000))
-    assert all(hi - lo + 1 <= 100 for lo, hi in rpc.requests)
+def cdp_row(block, index, value="1000000", token=CADD):
+    """A row as CDP returns it: UInt64 block numbers come back as strings."""
+    return {
+        "token_address": token,
+        "from_address": "0x" + "AB" * 20,
+        "to_address": "0x" + "cd" * 20,
+        "value": value,
+        "transaction_hash": f"0x{block:064X}",
+        "log_index": index,
+        "block_number": str(block),
+        "block_timestamp": "2026-02-26T15:04:05.000Z",
+    }
 
 
 class FakeResponse:
-    def __init__(self, status_code, body):
+    def __init__(self, status_code, body=None, headers=None):
         self.status_code = status_code
         self._body = body
+        self.headers = headers or {}
+        self.text = str(body)
 
     def json(self):
         return self._body
 
-    def raise_for_status(self):
-        if self.status_code >= 400:
-            raise AssertionError("HTTP error should have been turned into an RpcError")
-
 
 class FakeSession:
-    def __init__(self, response):
-        self.response = response
+    """Answers CDP queries from a list of rows, honouring the keyset cursor and
+    LIMIT in the SQL, like the real API. Optional `errors` are returned first."""
 
-    def post(self, url, json, timeout):
-        return self.response
+    def __init__(self, rows=(), errors=()):
+        self.rows = sorted(rows, key=lambda r: (int(r["block_number"]), r["log_index"]))
+        self.errors = list(errors)
+        self.sqls = []
+        self.headers = []
 
-
-def test_http_400_json_rpc_error_surfaces_the_provider_message():
-    error = {"jsonrpc": "2.0", "id": 1, "error": {"code": -32602, "message": "block range limited to 10"}}
-    rpc = Rpc("https://example", session=FakeSession(FakeResponse(400, error)))
-    with pytest.raises(RpcError, match="block range limited to 10"):
-        rpc.call("eth_getLogs", [{}])
-
-
-def test_block_timestamps_batches_and_converts_to_utc():
-    stamps = block_timestamps(FakeRpc(), {5, 1, 120}, batch_size=2)
-    assert set(stamps) == {1, 5, 120}
-    assert stamps[5].tzinfo == timezone.utc
-    assert stamps[5].timestamp() == 1_700_000_010
-
-
-@pytest.mark.parametrize("limit", [500, 1000, 2000, 3000])
-def test_fetch_logs_binary_search_bounds_rejections_for_long_scans(limit):
-    rpc = FakeRpc(limit=limit)
-    list(fetch_logs(rpc, "0xabc", start=0, end=999_999))
-    rejected = [r for r in rpc.requests if r[1] - r[0] + 1 > limit]
-    assert len(rejected) <= 12
-    assert rpc.ranges[0][0] == 0
-    assert rpc.ranges[-1][1] == 999_999
-    assert sum(hi - lo + 1 for lo, hi in rpc.ranges) == 1_000_000
-    assert all(left[1] + 1 == right[0] for left, right in zip(rpc.ranges, rpc.ranges[1:]))
+    def post(self, url, json, headers, timeout):
+        assert url == base.CDP_URL
+        self.sqls.append(json["sql"])
+        self.headers.append(headers)
+        if self.errors:
+            return self.errors.pop(0)
+        sql = json["sql"]
+        limit = int(re.search(r"LIMIT (\d+)", sql).group(1))
+        rows = self.rows
+        m = re.search(r"block_number > (\d+) OR \(block_number = \d+ AND log_index > (\d+)\)", sql)
+        if m:
+            after = (int(m.group(1)), int(m.group(2)))
+            rows = [r for r in rows if (int(r["block_number"]), r["log_index"]) > after]
+        return FakeResponse(200, {"result": rows[:limit], "metadata": {"rowCount": len(rows[:limit])}})
 
 
-def test_fetch_logs_adapts_when_later_ranges_reject_a_previously_accepted_width():
-    class VariableLimit(FakeRpc):
-        def call(self, method, params):
-            lo = int(params[0]["fromBlock"], 16)
-            self.limit = 100 if lo < 300 else 5
-            return super().call(method, params)
+def make_cdp(session, **kwargs):
+    cdp = CdpClient("key-id", "key-secret", session=session, sleep_fn=lambda s: None, min_interval=0, **kwargs)
+    cdp._headers = lambda: {"Authorization": "Bearer test"}  # no real signing in tests
+    return cdp
 
-    rpc = VariableLimit(max_requests=180)
-    list(fetch_logs(rpc, "0xabc", start=0, end=999, chunk=100, max_chunk=200))
-    assert rpc.ranges[0][0] == 0
-    assert rpc.ranges[-1][1] == 999
-    assert sum(hi - lo + 1 for lo, hi in rpc.ranges) == 1000
-    assert all(left[1] + 1 == right[0] for left, right in zip(rpc.ranges, rpc.ranges[1:]))
+
+def test_keyset_pagination_covers_every_row_once_across_pages():
+    # Several logs share a block, and a page boundary falls inside block 2.
+    rows = [cdp_row(b, i) for b in range(1, 6) for i in range(3)]
+    session = FakeSession(rows)
+    pages = list(fetch_transfers(make_cdp(session), [CADD], 0, CUTOFF, page_size=4))
+
+    got = [(r["block_number"], r["log_index"]) for page in pages for r in page]
+    assert got == [(b, i) for b in range(1, 6) for i in range(3)]
+    assert [len(p) for p in pages] == [4, 4, 4, 3]
+    assert len(session.sqls) == 4
+    assert "block_number > 2 OR (block_number = 2 AND log_index > 0)" in session.sqls[1]
+    assert "block_number > 3 OR (block_number = 3 AND log_index > 1)" in session.sqls[2]
+    assert all("OFFSET" not in sql for sql in session.sqls)
+
+
+def test_full_last_page_costs_one_extra_empty_query():
+    session = FakeSession([cdp_row(b, 0) for b in range(4)])
+    pages = list(fetch_transfers(make_cdp(session), [CADD], 0, CUTOFF, page_size=2))
+    assert [len(p) for p in pages] == [2, 2]
+    assert len(session.sqls) == 3
+
+
+def test_query_filters_erc20_transfers_and_respects_cutoff():
+    sql = build_query([CADD], 123, CUTOFF)
+    assert f"address IN ('{CADD}')" in sql
+    assert "event_signature = 'Transfer(address,address,uint256)'" in sql
+    assert "action = 'added'" in sql
+    assert "length(topics) = 3" in sql  # ERC-721 transfers carry a fourth topic
+    assert "block_number >= 123" in sql
+    assert "block_timestamp < toDateTime64('2026-11-22 12:00:00', 3, 'UTC')" in sql
+    assert sql.rstrip().endswith("ORDER BY block_number, log_index\nLIMIT 50000")
+
+
+def test_query_rejects_anything_but_lowercase_hex_addresses():
+    with pytest.raises(ValueError):
+        build_query(["0xabc'); DROP TABLE x; --"], 0, CUTOFF)
+    with pytest.raises(ValueError):
+        build_query([CADD.upper().replace("0X", "0x")], 0, CUTOFF)
+
+
+def test_parse_row_types_and_lowercases():
+    row = parse_row(cdp_row(42, 7, value=str(2**200)))
+    assert row == {
+        "token_address": CADD,
+        "from_address": "0x" + "ab" * 20,
+        "to_address": "0x" + "cd" * 20,
+        "value": str(2**200),  # beyond INT64, kept exact as a string
+        "transaction_hash": f"0x{42:064x}",
+        "log_index": 7,
+        "block_number": 42,
+        "block_timestamp": "2026-02-26T15:04:05+00:00",
+    }
+
+
+def test_parse_row_accepts_space_separated_timestamp_and_zero_value():
+    raw = cdp_row(1, 0, value="0") | {"block_timestamp": "2026-02-26 15:04:05.000"}
+    row = parse_row(raw)
+    assert row["value"] == "0"
+    assert row["block_timestamp"] == "2026-02-26T15:04:05+00:00"
+
+
+@pytest.mark.parametrize("value", ["", "-5", "1e18", "None"])
+def test_parse_row_rejects_non_integer_values(value):
+    with pytest.raises(CdpError):
+        parse_row(cdp_row(1, 0, value=value))
+
+
+def test_query_cap_stops_paging_and_counts_queries():
+    session = FakeSession([cdp_row(b, 0) for b in range(10)])
+    cdp = make_cdp(session, max_queries=3)
+    pages = []
+    with pytest.raises(QueryBudgetExceeded):
+        for page in fetch_transfers(cdp, [CADD], 0, CUTOFF, page_size=2):
+            pages.append(page)
+    assert cdp.queries == 3
+    assert len(session.sqls) == 3
+    assert len(pages) == 3
+
+
+def test_retries_on_429_and_counts_the_retry():
+    session = FakeSession(
+        [cdp_row(1, 0)],
+        errors=[FakeResponse(429, {"error": "rate limited"}, headers={"Retry-After": "1"})],
+    )
+    cdp = make_cdp(session)
+    pages = list(fetch_transfers(cdp, [CADD], 0, CUTOFF))
+    assert [len(p) for p in pages] == [1]
+    assert cdp.queries == 2  # the rejected attempt still spends a query
+    assert len(session.headers) == 2  # a header set (fresh JWT) per attempt
+
+
+def test_retry_attempts_also_respect_the_cap():
+    session = FakeSession(errors=[FakeResponse(503, {})] * 5)
+    cdp = make_cdp(session, max_queries=2, backoff_factor=0)
+    with pytest.raises(QueryBudgetExceeded):
+        cdp.query("SELECT 1")
+    assert cdp.queries == 2
+
+
+def test_non_retryable_error_raises_with_cdp_message():
+    session = FakeSession(errors=[FakeResponse(400, {"errorMessage": "syntax error"})])
+    cdp = make_cdp(session)
+    with pytest.raises(CdpError, match="HTTP 400.*syntax error"):
+        cdp.query("SELEC 1")
+    assert cdp.queries == 1
+
+
+def test_missing_credentials_fail_before_any_request():
+    session = FakeSession()
+    cdp = CdpClient("", "", session=session, sleep_fn=lambda s: None)
+    with pytest.raises(CdpError, match="must be set"):
+        cdp.query("SELECT 1")
+    assert session.sqls == []
+
+
+def test_eurc_is_excluded_from_base_loads():
+    seeded = {c.asset_symbol for c in base.load_contracts(chain="base")}
+    loaded = {c.asset_symbol for c in contracts_to_load()}
+    assert "EURC" in seeded
+    assert "EURC" not in loaded
+    assert loaded == seeded - set(base.EXCLUDED_ASSETS)
+    assert {"CADD", "CADC", "XSGD", "AUDD"} <= loaded
+
+
+def test_plan_scans_backfills_new_contracts_and_increments_known_ones():
+    scans = plan_scans(["0xb", "0xa", "0xc"], {"0xa": 100_000, "0xc": 90_000}, lookback_hours=1)
+    assert scans == [(0, ["0xb"]), (90_000 - 1_800, ["0xa", "0xc"])]
+    assert plan_scans(["0xa"], {}, 24) == [(0, ["0xa"])]
+    assert plan_scans(["0xa"], {"0xa": 10}, 24) == [(0, ["0xa"])]  # never below block 0
+
+
+def test_load_pages_flushes_fetched_rows_when_the_cap_is_hit(monkeypatch):
+    inserted = []
+    monkeypatch.setattr(base.bqh, "insert_new_rows", lambda client, target, rows, *a, **k: inserted.append(rows) or len(rows))
+
+    def pages():
+        yield [parse_row(cdp_row(1, 0)), parse_row(cdp_row(2, 0))]
+        raise QueryBudgetExceeded("cap")
+
+    with pytest.raises(QueryBudgetExceeded):
+        load_pages(None, pages(), insert_batch=1_000)
+    assert [len(batch) for batch in inserted] == [2]
+    assert all("_loaded_at" in r for r in inserted[0])

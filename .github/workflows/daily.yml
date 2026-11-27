@@ -1,8 +1,9 @@
 name: Daily pipeline
 
 # Ingest new data, then build and test the dbt project.
-# Base is skipped until it has a data source that works without a paid RPC
-# plan (issue #10). DefiLlama still records each token's supply on Base.
+# Base transfers come from the Coinbase CDP SQL API (issue #10); a daily run
+# uses one or two of its ~1,000 free monthly queries. EURC on Base is skipped
+# (see ingest/base.py); DefiLlama still records its supply there.
 # 11:17 UTC is 07:17 in Toronto (06:17 in winter); the odd minute avoids
 # the top-of-hour queue on GitHub's shared runners.
 on:
@@ -12,7 +13,7 @@ on:
     inputs:
       sources:
         description: "Sources to ingest (space-separated: ethereum base boc defillama, or all)"
-        default: ethereum boc defillama
+        default: ethereum base boc defillama
 
 permissions:
   contents: read
@@ -28,7 +29,11 @@ jobs:
     timeout-minutes: 60
     env:
       GCP_PROJECT: crypto-504119
-      BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }} # only used when base is requested (see issue #10)
+      # Base: CDP SQL API key for transfers; the decimals check uses
+      # BASE_RPC_URL if set, else the public mainnet.base.org endpoint.
+      CDP_API_KEY_ID: ${{ secrets.CDP_API_KEY_ID }}
+      CDP_API_KEY_SECRET: ${{ secrets.CDP_API_KEY_SECRET }}
+      BASE_RPC_URL: ${{ secrets.BASE_RPC_URL }}
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
@@ -45,7 +50,7 @@ jobs:
           service_account: ${{ secrets.GCP_SERVICE_ACCOUNT }}
 
       - name: Ingest
-        run: python -m ingest ${{ github.event.inputs.sources || 'ethereum boc defillama' }}
+        run: python -m ingest ${{ github.event.inputs.sources || 'ethereum base boc defillama' }}
 
       # Loads seeds, builds every model and runs every test against fresh data.
       # A broken model or a failing data test turns the daily run red.
