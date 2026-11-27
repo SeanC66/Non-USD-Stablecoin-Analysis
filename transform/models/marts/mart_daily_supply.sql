@@ -72,26 +72,55 @@ asset_days as (
         on fa.asset_symbol = a.asset_symbol
 ),
 
--- Net change in Ethereum supply per asset per day. Only contracts that count
--- toward supply, and never external assets, whose supply moves outside
--- standard events (see #17).
-daily_net_supply as (
+-- Wallets whose balance isn't circulating, such as JPYC's pre-minted
+-- treasury (see #11). They sit outside circulation like the zero address.
+excluded_holders as (
+    select chain, asset_symbol, holder_address
+    from {{ ref('supply_excluded_holders') }}
+),
+
+-- Each supply-relevant transfer, flagged by whether each side is outside
+-- circulation: the zero address (mint or burn) or an excluded holder.
+supply_flows as (
     select
         t.asset_symbol,
-        t.block_date as supply_date,
-        sum(
-            case t.transfer_type
-                when 'mint' then t.amount
-                when 'burn' then -t.amount
-                else 0
-            end
-        ) as net_supply
+        t.block_date,
+        t.amount,
+        t.transfer_type = 'mint' or from_excluded.holder_address is not null as from_outside,
+        t.transfer_type = 'burn' or to_excluded.holder_address is not null as to_outside
     from transfers as t
     inner join assets as a
         on t.asset_symbol = a.asset_symbol
+    left join excluded_holders as from_excluded
+        on t.chain = from_excluded.chain
+        and t.asset_symbol = from_excluded.asset_symbol
+        and t.from_address = from_excluded.holder_address
+    left join excluded_holders as to_excluded
+        on t.chain = to_excluded.chain
+        and t.asset_symbol = to_excluded.asset_symbol
+        and t.to_address = to_excluded.holder_address
     where t.counts_toward_supply
         and a.supply_method = 'transfers'
-    group by t.asset_symbol, t.block_date
+),
+
+-- Net change in circulating Ethereum supply per asset per day. Only contracts
+-- that count toward supply, and never external assets, whose supply moves
+-- outside standard events (see #17). Tokens entering circulation (minted, or
+-- released from an excluded holder) add; tokens leaving it subtract. A mint
+-- straight into a treasury, or a burn from one, changes nothing.
+daily_net_supply as (
+    select
+        asset_symbol,
+        block_date as supply_date,
+        sum(
+            case
+                when from_outside and not to_outside then amount
+                when to_outside and not from_outside then -amount
+                else 0
+            end
+        ) as net_supply
+    from supply_flows
+    group by asset_symbol, block_date
 ),
 
 -- Running total. Summing over asset_days rather than daily_net_supply means

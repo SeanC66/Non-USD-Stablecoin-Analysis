@@ -32,6 +32,43 @@ seeds:
               arguments:
                 values: [transfers, external]
 
+  - name: supply_excluded_holders
+    description: >
+      Wallets whose balance is not circulating supply, such as an issuer's
+      pre-minted treasury. mart_daily_supply treats them like the zero
+      address: a transfer out of one is issuance, a transfer into one is a
+      redemption. Add a wallet only with a source, ideally the issuer or
+      DefiLlama's own "unreleased" list, so our figure stays comparable.
+    columns:
+      - name: chain
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [ethereum, base, polygon, avalanche, arbitrum]
+      - name: asset_symbol
+        data_tests:
+          - not_null
+          - relationships:
+              arguments:
+                to: ref('assets')
+                field: asset_symbol
+      - name: holder_address
+        description: Lower-case hex address.
+        data_tests: [not_null]
+      - name: reason
+        data_tests:
+          - not_null
+          - accepted_values:
+              arguments:
+                values: [issuer_treasury]
+      - name: source
+        data_tests: [not_null]
+    data_tests:
+      - dbt_utils.unique_combination_of_columns:
+          arguments:
+            combination_of_columns: [chain, asset_symbol, holder_address]
+
   - name: token_contracts
     description: >
       Contract registry: the single source of truth for which contracts the
